@@ -10,7 +10,7 @@ const app = new Hono()
 // ✅ Unityなど外部アクセスを許可
 app.use('*', cors())
 
-app.get('/', (c) => c.text('Hello from Hono!'))
+app.get('/', (c) => c.text('Hello world! My name is Piyoone.'))
 
 // ✅ 動作確認
 app.get('/health', (c) => c.json({ status: 'ok' }))
