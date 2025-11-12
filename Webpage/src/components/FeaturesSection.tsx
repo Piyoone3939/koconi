@@ -24,7 +24,7 @@ export function FeaturesSection() {
   ];
 
   return (
-    <section id="features" className="py-20 md:py-28 lg:py-32 bg-gradient-to-b from-[#B0BEC5]/5 to-white">
+    <section id="features" className="py-20 md:py-28 lg:py-32 bg-linear-to-b from-[#B0BEC5]/5 to-white">
       <div className="max-w-[1440px] mx-auto px-4 md:px-6 lg:px-8">
         <motion.h2 
           initial={{ opacity: 0, y: 50 }}

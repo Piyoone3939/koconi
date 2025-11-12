@@ -94,7 +94,7 @@ export function HowItWorksSection() {
                     ease: 'easeInOut' 
                   }}
                 >
-                  <ArrowRight className="w-8 h-8 text-[#B0BEC5] flex-shrink-0" />
+                  <ArrowRight className="w-8 h-8 text-[#B0BEC5] shrink-0" />
                 </motion.div>
               )}
             </div>

@@ -71,7 +71,7 @@ export function HeroSection() {
           transition={{ duration: 1, delay: 0.6 }}
           className="mt-8 md:mt-16 relative px-4"
         >
-          <div className="w-full max-w-4xl mx-auto aspect-[16/9] md:aspect-[16/9] bg-gradient-to-b from-[#64B5F6]/20 to-transparent rounded-2xl md:rounded-3xl flex items-center justify-center">
+          <div className="w-full max-w-4xl mx-auto aspect-video md:aspect-video bg-linear-to-b from-[#64B5F6]/20 to-transparent rounded-2xl md:rounded-3xl flex items-center justify-center">
             <div className="text-center space-y-3 md:space-y-4">
               <motion.div 
                 animate={{ 

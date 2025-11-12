@@ -82,7 +82,7 @@ export function LowPolyBackground() {
       ></motion.div>
       
       {/* Gradient overlays */}
-      <div className="absolute bottom-0 left-0 right-0 h-64 bg-gradient-to-t from-[#FFFDE7] to-transparent"></div>
+      <div className="absolute bottom-0 left-0 right-0 h-64 bg-linear-to-t from-[#FFFDE7] to-transparent"></div>
     </div>
   );
 }

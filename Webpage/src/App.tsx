@@ -8,7 +8,6 @@ import { AboutSection } from "./components/AboutSection";
 import { DownloadSection } from "./components/DownloadSection";
 import { PrivacySection } from "./components/PrivacySection";
 import { Footer } from "./components/Footer";
-import { LowPolyBackground } from "./components/LowPolyBackground";
 
 function App() {
   return (

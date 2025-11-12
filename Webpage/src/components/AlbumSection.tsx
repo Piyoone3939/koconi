@@ -100,7 +100,7 @@ export function AlbumSection() {
               <motion.div
                 initial={{ opacity: 0 }}
                 whileHover={{ opacity: 1 }}
-                className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-3 md:p-4"
+                className="absolute inset-0 bg-linear-to-t from-black/60 to-transparent flex items-end p-3 md:p-4"
               >
                 <span 
                   className="text-white text-sm md:text-base" 

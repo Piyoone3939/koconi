@@ -31,7 +31,7 @@ export function AISection() {
       whileInView={{ opacity: 1 }}
       viewport={{ once: true, margin: "-100px" }}
       transition={{ duration: 1 }}
-      className="py-20 md:py-28 lg:py-32 bg-gradient-to-br from-[#FFFDE7] via-white to-[#B0BEC5]/10 relative overflow-hidden"
+      className="py-20 md:py-28 lg:py-32 bg-linear-to-br from-[#FFFDE7] via-white to-[#B0BEC5]/10 relative overflow-hidden"
     >
       <div className="max-w-[1440px] mx-auto px-4 md:px-6 lg:px-8 relative z-10">
         {/* タイトル */}
@@ -124,7 +124,7 @@ export function AISection() {
                 repeat: Infinity,
                 ease: "easeInOut",
               }}
-              className="absolute rounded-full bg-gradient-to-br from-[#EF6C00]/10 to-[#64B5F6]/10"
+              className="absolute rounded-full bg-linear-to-br from-[#EF6C00]/10 to-[#64B5F6]/10"
               style={{
                 width: "75%",
                 height: "75%",

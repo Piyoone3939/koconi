@@ -3,7 +3,7 @@ import { MapPin, Camera, Box } from 'lucide-react';
 
 export function AboutSection() {
   return (
-    <section id="about" className="py-20 md:py-28 lg:py-32 bg-gradient-to-b from-[#FFFDE7] to-[#B0BEC5]/10 relative overflow-hidden">
+    <section id="about" className="py-20 md:py-28 lg:py-32 bg-linear-to-b from-[#FFFDE7] to-[#B0BEC5]/10 relative overflow-hidden">
       <div className="max-w-[1440px] mx-auto px-4 md:px-6 lg:px-8">
         <div className="grid md:grid-cols-2 gap-8 md:gap-12 lg:gap-16 items-center">
           {/* Text Content */}
@@ -79,7 +79,7 @@ export function AboutSection() {
                   repeat: Infinity, 
                   ease: 'easeInOut' 
                 }}
-                className="absolute inset-0 bg-gradient-to-br from-[#64B5F6]/20 via-[#EF6C00]/10 to-[#B0BEC5]/20 rounded-full blur-2xl"
+                className="absolute inset-0 bg-linear-to-br from-[#64B5F6]/20 via-[#EF6C00]/10 to-[#B0BEC5]/20 rounded-full blur-2xl"
               />
               
               {/* Map base */}
