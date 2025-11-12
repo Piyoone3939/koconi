@@ -1,0 +1,45 @@
+services:
+  hono:
+    build: ./backend/hono
+    container_name: koconi_hono
+    env_file:
+      - ./backend/hono/.env
+    depends_on:
+      - koconi_db
+    restart: unless-stopped
+
+  koconi_db:
+    image: postgres:16-alpine
+    container_name: koconi_db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres_user
+      - POSTGRES_PASSWORD=postgres_password
+      - POSTGRES_DB=koconi
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # 本番は外出ししない（portsなし）
+
+  # Nginx は公式イメージをそのまま利用（Dockerfile不要）
+  nginx:
+    image: nginx:alpine
+    container_name: koconi_nginx
+    volumes:
+      - ./Webpage/dist:/usr/share/nginx/html:ro   # ← 大文字小文字に注意
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - hono
+    restart: unless-stopped
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: koconi_cloudflared
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    environment:
+      - CLOUDFLARE_TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - nginx
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
