@@ -1,29 +1,31 @@
-import { Header } from './components/Header';
-import { HeroSection } from './components/HeroSection';
-import { AboutSection } from './components/AboutSection';
-import { FeaturesSection } from './components/FeaturesSection';
-import { HowItWorksSection } from './components/HowItWorksSection';
-import { AISection } from './components/AISection';
-import { AlbumSection } from './components/AlbumSection';
-import { PrivacySection } from './components/PrivacySection';
-import { DownloadSection } from './components/DownloadSection';
-import { Footer } from './components/Footer';
+import { Header } from "./components/Header";
+import { HeroSection } from "./components/HeroSection";
+import { FeaturesSection } from "./components/FeaturesSection";
+import { HowItWorksSection } from "./components/HowItWorksSection";
+import { AISection } from "./components/AISection";
+import { AlbumSection } from "./components/AlbumSection";
+import { AboutSection } from "./components/AboutSection";
+import { DownloadSection } from "./components/DownloadSection";
+import { PrivacySection } from "./components/PrivacySection";
+import { Footer } from "./components/Footer";
+import { LowPolyBackground } from "./components/LowPolyBackground";
 
-export default function App() {
+function App() {
   return (
-    <div className="min-h-screen bg-[#FFFDE7] scroll-smooth">
+    <main className="relative overflow-hidden bg-background text-gray-900">
       <Header />
-      <main>
-        <HeroSection />
-        <AboutSection />
-        <FeaturesSection />
-        <HowItWorksSection />
-        <AISection />
-        <AlbumSection />
-        <PrivacySection />
-        <DownloadSection />
-      </main>
+      <HeroSection />
+      <AboutSection />
+      <FeaturesSection />
+      <HowItWorksSection />
+      <AISection />
+      <AlbumSection />
+      <PrivacySection />
+      <DownloadSection />
       <Footer />
-    </div>
+
+    </main>
   );
 }
+
+export default App;

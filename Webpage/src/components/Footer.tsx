@@ -1,5 +1,5 @@
 import { Map, Twitter, Instagram, Github } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 
 export function Footer() {
   return (

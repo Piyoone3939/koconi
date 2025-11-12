@@ -1,6 +1,6 @@
 import { Camera, Sparkles, Map } from 'lucide-react';
 import { ArrowRight, ArrowDown } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 
 export function HowItWorksSection() {
   const steps = [

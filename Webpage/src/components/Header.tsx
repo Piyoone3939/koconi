@@ -1,6 +1,6 @@
 import { Map, Menu, X } from 'lucide-react';
 import { Button } from './ui/button';
-import { motion, useScroll, useTransform } from 'motion/react';
+import { motion, useScroll, useTransform } from 'framer-motion';
 import { useState } from 'react';
 
 export function Header() {

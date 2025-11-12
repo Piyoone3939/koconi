@@ -1,11 +1,13 @@
 import { Button } from './ui/button';
 import { LowPolyBackground } from './LowPolyBackground';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 
 export function HeroSection() {
   return (
     <section className="relative min-h-[85vh] md:min-h-screen flex items-center justify-center overflow-hidden pt-16 md:pt-20">
+      <div className ="absolute inset-0 -z-10">
       <LowPolyBackground />
+      </div>
       
       <div className="max-w-[1440px] mx-auto px-4 md:px-6 lg:px-8 py-16 md:py-24 lg:py-32 relative z-10">
         <div className="text-center space-y-4 md:space-y-6">

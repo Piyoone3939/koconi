@@ -1,6 +1,6 @@
 import { Button } from './ui/button';
 import { Apple, Smartphone } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion } from 'framer-motion';
 
 export function DownloadSection() {
   return (

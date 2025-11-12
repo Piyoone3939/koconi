@@ -1,5 +1,5 @@
 import { Camera, Cpu, Map, Box } from "lucide-react";
-import { motion } from "motion/react";
+import { motion } from "framer-motion";
 
 export function AISection() {
   const centerIcon = {
@@ -165,7 +165,7 @@ export function AISection() {
                     <div
                       className="rounded-full flex items-center justify-center shadow-xl relative"
                       style={{
-                        backgroundColor: `${item.color}20`,
+                        backgroundColor: item.color,
                         width: "clamp(64px, 18vw, 96px)",
                         height: "clamp(64px, 18vw, 96px)",
                         aspectRatio: "1 / 1", // ← 各アイコンも真円固定
@@ -173,7 +173,7 @@ export function AISection() {
                     >
                       <item.Icon
                         style={{
-                          color: item.color,
+                          color: '#FFFFFF',
                           width: "50%",
                           height: "50%",
                         }}
