@@ -1,0 +1,24 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- 背景は「円の中だけ塗る」ので、キャンバス自体は透過のまま -->
+  <!-- 背景サークル -->
+  <circle cx="256" cy="256" r="220" fill="#FFF7EB"></circle>
+
+  <!-- 下の地図カード -->
+  <rect x="136" y="260" width="240" height="120" rx="24" fill="#FFE0B2"></rect>
+  <!-- 地図のざっくりした分割ライン -->
+  <path d="M136 308 L208 260 L288 320 L376 280" fill="none" stroke="#FFB74D" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"></path>
+  <path d="M192 380 L264 320 L336 356" fill="none" stroke="#FFB74D" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"></path>
+
+  <!-- マップピン本体 -->
+  <path d="M256 120
+       C 209 120 172 157 172 204
+       C 172 246 200 292 256 352
+       C 312 292 340 246 340 204
+       C 340 157 303 120 256 120 Z" fill="#FF9800"></path>
+
+  <!-- ピンの中の丸 -->
+  <circle cx="256" cy="204" r="32" fill="#FFEFD9"></circle>
+
+  <!-- ピンの下に落ち影 -->
+  <ellipse cx="256" cy="392" rx="80" ry="18" fill="rgba(0,0,0,0.06)"></ellipse>
+</svg>
