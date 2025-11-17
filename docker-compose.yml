@@ -8,6 +8,16 @@ services:
       - koconi_db
     restart: unless-stopped
 
+  webpage:
+    build: ./webpage
+    container_name: koconi_webpage
+    expose:
+      - "3001"
+    environment:
+      - NODE_ENV=production
+    depends_on:
+      - hono
+
   koconi_db:
     image: postgres:16-alpine
     container_name: koconi_db
@@ -18,17 +28,16 @@ services:
       - POSTGRES_DB=koconi
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    # 本番は外出ししない（portsなし）
 
-  # Nginx は公式イメージをそのまま利用（Dockerfile不要）
   nginx:
-    image: nginx:alpine
+    build: ./nginx
     container_name: koconi_nginx
     volumes:
-      - ./Webpage/dist:/usr/share/nginx/html:ro   # ← 大文字小文字に注意
+      - ./webpage/dist:/usr/share/nginx/html:ro
       - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - hono
+      - webpage
     restart: unless-stopped
 
   cloudflared:
