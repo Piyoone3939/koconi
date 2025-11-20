@@ -1,106 +1,57 @@
 # ========================================
-# 🌐 共通ルール（全体）
+# 🌐 共通・OS設定
 # ========================================
 .DS_Store
 Thumbs.db
-*.tmp
-*.bak
-*.swp
-*.swo
-
-.vscode/
-.idea/
-.history/
-*.code-workspace
-
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
 # ========================================
-# 🧱 backend (Node.js + Hono + Prisma + Docker)
+# 🎮 Unity (apps/game)
 # ========================================
-backend/node_modules/
-backend/hono/node_modules/
-backend/hono/dist/
-backend/hono/build/
-backend/hono/*.log
-backend/hono/npm-debug.log*
+# Unityの一時フォルダやビルド生成物を除外
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+# 特定のパス指定にする場合: apps/game/Library/ などでも可
 
-# 環境変数ファイル（セキュリティ）
-backend/.env
-backend/.env.*
-backend/hono/.env
-backend/hono/.env.*
-
-# Prisma関連
-backend/hono/prisma/dev.db
-backend/hono/prisma/migrations/
-backend/hono/prisma/*.db-journal
-
-# Docker関連
-backend/.dockerignore
-backend/*.pid
-backend/*.tar
-backend/*.seed
-backend/*.cert
-backend/*.pem
-backend/*.key
-backend/*.json
-backend/cloudflared*.log
-backend/cloudflared*.db
-
-# npm / lockfiles
-backend/hono/package-lock.json
-backend/package-lock.json
-
-# ========================================
-# ⚛️ frontend (Next.js / React)
-# ========================================
-frontend/node_modules/
-frontend/.next/
-frontend/out/
-frontend/build/
-frontend/dist/
-frontend/.vercel/
-frontend/.env
-frontend/.env.*
-frontend/coverage/
-frontend/npm-debug.log*
-frontend/.turbo/
-frontend/.swc/
-
-# ========================================
-# 🎮 Unity Project
-# ========================================
-Library/
-Temp/
-Obj/
-Build/
-Builds/
-Logs/
-UserSettings/
-MemoryCaptures/
-CrashReports/
+# Visual Studio / JetBrains 生成物
 .vs/
-.gradle/
+.idea/
 *.csproj
-*.pidb
-*.suo
-*.user
-*.userprefs
-*.dll
-*.mdb
-*.pdb
+*.unityproj
+*.sln
+*.slnx
 
 # ========================================
-# 📦 その他
+# 🧱 Backend & Services (Node.js / Python)
 # ========================================
-node_modules/
-dist/
-build/
-coverage/
-tmp/
-cache/
-*.tgz
+# パスが変わっても効くように **/ を使用
+**/node_modules/
+**/npm-debug.log*
+**/yarn-error.log*
+**/.env
+**/.env.*
+
+# Prisma
+**/prisma/*.db
+**/prisma/migrations/
+
+# Python (AI service)
+**/__pycache__/
+**/*.py[cod]
+**/venv/
+**/.venv/
+
+# ========================================
+# ⚛️ Frontend (Next.js / React)
+# ========================================
+**/.next/
+**/out/
+**/dist/
+**/build/
+**/.vercel/
+**/coverage/
