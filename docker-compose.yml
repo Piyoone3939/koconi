@@ -1,6 +1,6 @@
 services:
   hono:
-    build: ./backend/hono
+    build: ./services/api
     container_name: koconi_hono
     env_file:
       - ./services/api/.env
@@ -30,7 +30,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   nginx:
-    build: ./nginx
+    build: ./infra/nginx
     container_name: koconi_nginx
     volumes:
       - ./apps/web/dist:/usr/share/nginx/html:ro
