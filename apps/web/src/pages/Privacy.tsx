@@ -265,7 +265,7 @@ export function Privacy() {
                 <p className="mt-4">
                   <strong>Koconi運営チーム</strong>
                   <br />
-                  メール: privacy@koconi.app
+                  メール: support@koconi.com
                 </p>
               </Section>
             </div>

@@ -136,7 +136,7 @@ export function Contact() {
                   fontFamily: "'Noto Sans JP', sans-serif",
                 }}
               >
-                support@koconi.app
+                support@koconi.com
               </p>
             </motion.div>
 
