@@ -1,30 +1,39 @@
-import { Header } from "./components/Header";
-import { HeroSection } from "./components/HeroSection";
-import { FeaturesSection } from "./components/FeaturesSection";
-import { HowItWorksSection } from "./components/HowItWorksSection";
-import { AISection } from "./components/AISection";
-import { AlbumSection } from "./components/AlbumSection";
-import { AboutSection } from "./components/AboutSection";
-import { DownloadSection } from "./components/DownloadSection";
-import { PrivacySection } from "./components/PrivacySection";
-import { Footer } from "./components/Footer";
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
+import { Header } from './components/Header';
+import { Footer } from './components/Footer';
+import { Home } from './pages/Home';
+import { Terms } from './pages/Terms';
+import { Privacy } from './pages/Privacy';
+import { Contact } from './pages/Contact';
+import { useEffect } from 'react';
 
-function App() {
-  return (
-    <main className="relative overflow-hidden bg-background text-gray-900">
-      <Header />
-      <HeroSection />
-      <AboutSection />
-      <FeaturesSection />
-      <HowItWorksSection />
-      <AISection />
-      <AlbumSection />
-      <PrivacySection />
-      <DownloadSection />
-      <Footer />
+function ScrollToTop() {
+  const { pathname } = useLocation();
 
-    </main>
-  );
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
 }
 
-export default App;
+export default function App() {
+  return (
+    <Router basename="/">
+      <ScrollToTop />
+      <div className="min-h-screen bg-[#FFFDE7] scroll-smooth">
+        <Header />
+        <main>
+          <Routes>
+            <Route path="/" element={<Home />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/contact" element={<Contact />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </main>
+        <Footer />
+      </div>
+    </Router>
+  );
+}
