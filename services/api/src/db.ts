@@ -1,12 +1,5 @@
-import { Client } from 'pg'
+import { PrismaClient } from '@prisma/client'
 
-const client = new Client({
-  host: 'koconi_db',
-  port: 5432,
-  user: 'postgres_user',
-  password: 'postgres_password',
-  database: 'koconi',
-})
+const prisma = new PrismaClient()
 
-await client.connect()
-export default client
+export default prisma

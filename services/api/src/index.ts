@@ -1,9 +1,7 @@
 import { Hono } from 'hono'
 import { serve } from '@hono/node-server'
 import { cors } from 'hono/cors'
-
-// 🧠 一時保存（メモリ上だけで動作確認用）
-const memories: any[] = []
+import prisma from './db'
 
 const app = new Hono()
 
@@ -17,20 +15,34 @@ app.get('/health', (c) => c.json({ status: 'ok' }))
 
 // ✅ POST /memory：メモリ登録
 app.post('/memory', async (c) => {
-  const body = await c.req.json()
-  memories.push({
-    id: memories.length + 1,
-    ...body,
-    createdAt: new Date().toISOString(),
-  })
-  console.log('📥 Received memory:', body)
-  return c.json({ ok: true })
+  try {
+    const body = await c.req.json()
+    const memory = await prisma.memory.create({
+      data: {
+        title: body.title,
+        description: body.description,
+      },
+    })
+    console.log('📥 Received memory:', memory)
+    return c.json({ ok: true, memory })
+  } catch (e) {
+    console.error(e)
+    return c.json({ ok: false, error: 'Failed to create memory' }, 500)
+  }
 })
 
 // ✅ GET /memory：メモリ一覧取得
-app.get('/memory', (c) => {
-  console.log('📤 Returning memories:', memories)
-  return c.json(memories)
+app.get('/memory', async (c) => {
+  try {
+    const memories = await prisma.memory.findMany({
+      orderBy: { createdAt: 'desc' },
+    })
+    console.log('📤 Returning memories:', memories)
+    return c.json(memories)
+  } catch (e) {
+    console.error(e)
+    return c.json({ ok: false, error: 'Failed to fetch memories' }, 500)
+  }
 })
 
 // ✅ サーバ起動

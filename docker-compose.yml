@@ -50,5 +50,14 @@ services:
       - nginx
     restart: unless-stopped
 
+  ai:
+    build: ./services/ai
+    container_name: koconi_ai
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./services/ai:/app
+    restart: unless-stopped
+
 volumes:
   postgres_data:
