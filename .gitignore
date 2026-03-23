@@ -5,18 +5,6 @@
 Thumbs.db
 *.log
 
-# ========================================
-# 🎮 Unity (apps/game)
-# ========================================
-# Unityの一時フォルダやビルド生成物を除外
-**/[Ll]ibrary/
-**/[Tt]emp/
-**/[Oo]bj/
-**/[Bb]uild/
-**/[Bb]uilds/
-**/[Ll]ogs/
-**/[Uu]ser[Ss]ettings/
-# 特定のパス指定にする場合: apps/game/Library/ などでも可
 
 # Visual Studio / JetBrains 生成物
 .vs/
