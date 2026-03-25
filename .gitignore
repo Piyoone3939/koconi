@@ -1,10 +1,9 @@
 # ========================================
-# 🌐 共通・OS設定
+# 共通・OS設定
 # ========================================
 .DS_Store
 Thumbs.db
 *.log
-
 
 # Visual Studio / JetBrains 生成物
 .vs/
@@ -15,9 +14,8 @@ Thumbs.db
 *.slnx
 
 # ========================================
-# 🧱 Backend & Services (Node.js / Python)
+# Backend & Services
 # ========================================
-# パスが変わっても効くように **/ を使用
 **/node_modules/
 **/npm-debug.log*
 **/yarn-error.log*
@@ -34,8 +32,20 @@ Thumbs.db
 **/venv/
 **/.venv/
 
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.out
+services/api/server
+services/api/server.exe
+
 # ========================================
-# ⚛️ Frontend (Next.js / React)
+# Frontend
 # ========================================
 **/.next/
 **/out/
@@ -43,3 +53,6 @@ Thumbs.db
 **/build/
 **/.vercel/
 **/coverage/
+
+# keep template env files
+!.env.example

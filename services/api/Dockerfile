@@ -1,18 +1,15 @@
-FROM node:20-alpine
-
-
-
+FROM golang:1.26-alpine AS builder
 WORKDIR /app
 
-# 依存関係を先にコピー＆インストール
-COPY package*.json ./
-RUN npm install --omit=dev
+COPY go.mod go.sum ./
+RUN go mod download
 
-# ソースをコピー
 COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/server ./cmd/server
 
-# Prismaクライアント生成
-RUN npx prisma generate
+FROM alpine:latest
+WORKDIR /app
+COPY --from=builder /app/server .
 
 EXPOSE 3000
-CMD ["npm", "start"]
+CMD ["./server"]
