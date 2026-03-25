@@ -30,6 +30,8 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   nginx:
+    ports:
+      - "80:80"
     build: ./infra/nginx
     container_name: koconi_nginx
     volumes:
@@ -43,7 +45,7 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:latest
     container_name: koconi_cloudflared
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    command: tunnel --no-autoupdate --protocol http2 run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     environment:
       - CLOUDFLARE_TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
     depends_on:
