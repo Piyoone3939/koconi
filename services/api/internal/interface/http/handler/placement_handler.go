@@ -1,0 +1,99 @@
+package handler
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+
+	"koconi/api/internal/usecase"
+)
+
+type PlacementHandler struct {
+	createUC *usecase.CreateLandmarkPlacementUseCase
+	listUC   *usecase.ListLandmarkPlacementsByBoundsUseCase
+}
+
+func NewPlacementHandler(
+	c *usecase.CreateLandmarkPlacementUseCase,
+	l *usecase.ListLandmarkPlacementsByBoundsUseCase,
+) *PlacementHandler {
+	return &PlacementHandler{createUC: c, listUC: l}
+}
+
+type createPlacementRequest struct {
+	PhotoID    int64     `json:"photo_id"`
+	AssetID    string    `json:"asset_id"`
+	Lat        float64   `json:"lat"`
+	Lng        float64   `json:"lng"`
+	Scale      float64   `json:"scale"`
+	Rotation   []float64 `json:"rotation"`
+	MatchScore *float64  `json:"match_score"`
+}
+
+func (h *PlacementHandler) CreatePlacement(w http.ResponseWriter, r *http.Request) {
+	var req createPlacementRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeBadRequest(w, "invalid json")
+		return
+	}
+
+	p, err := h.createUC.Execute(
+		r.Context(),
+		req.PhotoID,
+		req.AssetID,
+		req.Lat,
+		req.Lng,
+		req.Scale,
+		req.Rotation,
+		req.MatchScore,
+	)
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "placement": p})
+}
+
+func (h *PlacementHandler) ListPlacements(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+
+	minLat, err := strconv.ParseFloat(q.Get("min_lat"), 64)
+	if err != nil {
+		writeBadRequest(w, "invalid min_lat")
+		return
+	}
+	maxLat, err := strconv.ParseFloat(q.Get("max_lat"), 64)
+	if err != nil {
+		writeBadRequest(w, "invalid max_lat")
+		return
+	}
+	minLng, err := strconv.ParseFloat(q.Get("min_lng"), 64)
+	if err != nil {
+		writeBadRequest(w, "invalid min_lng")
+		return
+	}
+	maxLng, err := strconv.ParseFloat(q.Get("max_lng"), 64)
+	if err != nil {
+		writeBadRequest(w, "invalid max_lng")
+		return
+	}
+
+	limit := 100
+	if s := q.Get("limit"); s != "" {
+		v, e := strconv.Atoi(s)
+		if e != nil {
+			writeBadRequest(w, "invalid limit")
+			return
+		}
+		limit = v
+	}
+
+	ps, err := h.listUC.Execute(r.Context(), minLat, maxLat, minLng, maxLng, limit)
+	if err != nil {
+		writeBadRequest(w, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "placements": ps})
+}

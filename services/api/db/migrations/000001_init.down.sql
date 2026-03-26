@@ -1,0 +1,7 @@
+BEGIN;
+
+DROP TABLE IF EXISTS landmark_placements;
+DROP TABLE IF EXISTS photos;
+DROP TABLE IF EXISTS "Memory";
+
+COMMIT;
