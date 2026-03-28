@@ -6,8 +6,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/go-chi/chi/v5"
 	"koconi/api/internal/usecase"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type PhotoMatchHandler struct {
