@@ -8,9 +8,9 @@ services:
       - koconi_db
     restart: unless-stopped
 
-  webpage:
-    build: ./apps/web
-    container_name: koconi_webpage
+  lp:
+    build: ./apps/LP
+    container_name: koconi_lp
     expose:
       - "3001"
     environment:
@@ -35,11 +35,11 @@ services:
     build: ./infra/nginx
     container_name: koconi_nginx
     volumes:
-      - ./apps/web/dist:/usr/share/nginx/html:ro
+      - ./apps/LP/dist:/usr/share/nginx/html:ro
       - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - api
-      - webpage
+      - lp
     restart: unless-stopped
 
   cloudflared:

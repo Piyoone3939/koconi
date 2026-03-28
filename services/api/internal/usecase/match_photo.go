@@ -3,8 +3,18 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"koconi/api/internal/domain"
+)
+
+var (
+	ErrInvalidPhotoID = errors.New("invalid photo_id")
+	ErrImageRequired  = errors.New("image required")
+	ErrInvalidLat     = errors.New("invalid lat")
+	ErrInvalidLng     = errors.New("invalid lng")
+	ErrPhotoNotFound  = errors.New("photo not found")
+	ErrAIMatchFailed  = errors.New("ai match failed")
 )
 
 type MatchPhotoUseCase struct {
@@ -27,10 +37,10 @@ func (u *MatchPhotoUseCase) Execute(
 	k int,
 ) (domain.AIMatchResult, error) {
 	if photoID <= 0 {
-		return domain.AIMatchResult{}, errors.New("photo_id must be positive")
+		return domain.AIMatchResult{}, ErrInvalidPhotoID
 	}
 	if len(image) == 0 {
-		return domain.AIMatchResult{}, errors.New("image file is required")
+		return domain.AIMatchResult{}, ErrImageRequired
 	}
 	if k <= 0 {
 		k = 5
@@ -38,10 +48,21 @@ func (u *MatchPhotoUseCase) Execute(
 	if k > 20 {
 		k = 20
 	}
-
-	if _, err := u.photoRepo.GetByID(ctx, photoID); err != nil {
-		return domain.AIMatchResult{}, err
+	if lat != nil && (*lat < -90 || *lat > 90) {
+		return domain.AIMatchResult{}, ErrInvalidLat
+	}
+	if lng != nil && (*lng < -180 || *lng > 180) {
+		return domain.AIMatchResult{}, ErrInvalidLng
 	}
 
-	return u.aiClient.Match(ctx, image, lat, lng, k)
+	if _, err := u.photoRepo.GetByID(ctx, photoID); err != nil {
+		return domain.AIMatchResult{}, fmt.Errorf("%w: %v", ErrPhotoNotFound, err)
+	}
+
+	result, err := u.aiClient.Match(ctx, image, lat, lng, k)
+	if err != nil {
+		return domain.AIMatchResult{}, fmt.Errorf("%w: %v", ErrAIMatchFailed, err)
+	}
+
+	return result, nil
 }

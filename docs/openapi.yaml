@@ -1,0 +1,464 @@
+openapi: 3.0.3
+info:
+  title: Koconi API (Draft)
+  version: 0.1.0
+  description: 現在実装されているエンドポイントに基づくドラフト仕様
+servers:
+  - url: http://localhost:3000
+tags:
+  - name: health
+  - name: memory
+  - name: photos
+  - name: placements
+
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  status:
+                    type: string
+                    example: ok
+                required: [ok, status]
+
+  /memory:
+    post:
+      tags: [memory]
+      summary: Create memory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMemoryRequest"
+      responses:
+        "200":
+          description: Memory created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  memory:
+                    $ref: "#/components/schemas/Memory"
+                required: [ok, memory]
+        "400":
+          $ref: "#/components/responses/Error400"
+        "500":
+          $ref: "#/components/responses/Error500"
+    get:
+      tags: [memory]
+      summary: List memories
+      responses:
+        "200":
+          description: Memories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  memories:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Memory"
+                required: [ok, memories]
+        "500":
+          $ref: "#/components/responses/Error500"
+
+  /v1/photos:
+    post:
+      tags: [photos]
+      summary: Create photo metadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePhotoRequest"
+      responses:
+        "200":
+          description: Photo created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  photo:
+                    $ref: "#/components/schemas/Photo"
+                required: [ok, photo]
+        "400":
+          $ref: "#/components/responses/Error400"
+
+  /v1/photos/{photoID}/match:
+    post:
+      tags: [photos]
+      summary: Match uploaded image to landmark assets
+      parameters:
+        - in: path
+          name: photoID
+          required: true
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/MatchPhotoRequest"
+      responses:
+        "200":
+          description: Match result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  result:
+                    $ref: "#/components/schemas/AIMatchResult"
+                required: [ok, result]
+        "400":
+          $ref: "#/components/responses/Error400"
+        "404":
+          $ref: "#/components/responses/Error404"
+        "502":
+          $ref: "#/components/responses/Error502"
+        "500":
+          $ref: "#/components/responses/Error500"
+
+  /v1/placements:
+    post:
+      tags: [placements]
+      summary: Create landmark placement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePlacementRequest"
+      responses:
+        "200":
+          description: Placement created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  placement:
+                    $ref: "#/components/schemas/LandmarkPlacement"
+                required: [ok, placement]
+        "400":
+          $ref: "#/components/responses/Error400"
+    get:
+      tags: [placements]
+      summary: List placements by map bounds
+      parameters:
+        - in: query
+          name: min_lat
+          required: true
+          schema:
+            type: number
+            format: double
+        - in: query
+          name: max_lat
+          required: true
+          schema:
+            type: number
+            format: double
+        - in: query
+          name: min_lng
+          required: true
+          schema:
+            type: number
+            format: double
+        - in: query
+          name: max_lng
+          required: true
+          schema:
+            type: number
+            format: double
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        "200":
+          description: Placements
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:
+                    type: boolean
+                    example: true
+                  placements:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/LandmarkPlacement"
+                required: [ok, placements]
+        "400":
+          $ref: "#/components/responses/Error400"
+
+components:
+  schemas:
+    CreateMemoryRequest:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+      required: [title]
+
+    Memory:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        title:
+          type: string
+        description:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, title, createdAt]
+
+    CreatePhotoRequest:
+      type: object
+      properties:
+        device_id:
+          type: string
+        lat:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        captured_at:
+          type: string
+          format: date-time
+          description: RFC3339
+        image_key:
+          type: string
+      required: [device_id, lat, lng, captured_at, image_key]
+
+    Photo:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        device_id:
+          type: string
+        lat:
+          type: number
+          format: double
+        lng:
+          type: number
+          format: double
+        captured_at:
+          type: string
+          format: date-time
+        image_key:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+      required: [id, device_id, lat, lng, captured_at, image_key, created_at]
+
+    MatchPhotoRequest:
+      type: object
+      properties:
+        file:
+          type: string
+          format: binary
+        lat:
+          type: number
+          format: double
+        lng:
+          type: number
+          format: double
+        k:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 5
+      required: [file]
+
+    AICandidate:
+      type: object
+      properties:
+        asset_id:
+          type: string
+        match_score:
+          type: number
+          format: double
+        suggested_scale:
+          type: number
+          format: double
+        suggested_rotation:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items:
+            type: number
+            format: double
+      required: [asset_id, match_score, suggested_scale, suggested_rotation]
+
+    AIMatchResult:
+      type: object
+      properties:
+        candidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/AICandidate"
+      required: [candidates]
+
+    CreatePlacementRequest:
+      type: object
+      properties:
+        photo_id:
+          type: integer
+          format: int64
+          minimum: 1
+        asset_id:
+          type: string
+        lat:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+        lng:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+        scale:
+          type: number
+          format: double
+          minimum: 0
+          exclusiveMinimum: true
+        rotation:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items:
+            type: number
+            format: double
+        match_score:
+          type: number
+          format: double
+          nullable: true
+      required: [photo_id, asset_id, lat, lng, scale, rotation]
+
+    LandmarkPlacement:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        photo_id:
+          type: integer
+          format: int64
+        asset_id:
+          type: string
+        lat:
+          type: number
+          format: double
+        lng:
+          type: number
+          format: double
+        scale:
+          type: number
+          format: double
+        rotation:
+          type: array
+          minItems: 3
+          maxItems: 3
+          items:
+            type: number
+            format: double
+        match_score:
+          type: number
+          format: double
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+      required: [id, photo_id, asset_id, lat, lng, scale, rotation, created_at]
+
+    ErrorResponse:
+      type: object
+      properties:
+        OK:
+          type: boolean
+          example: false
+        Error:
+          type: string
+      required: [OK, Error]
+
+  responses:
+    Error400:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Error404:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Error502:
+      description: Upstream Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Error500:
+      description: Internal Server Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
