@@ -6,7 +6,9 @@ import type { KoconiGateway } from "../../domain/ports/koconi-gateway";
 export function MapScreen({ gateway }: { gateway: KoconiGateway }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [items, setItems] = useState<Array<{ id: number; assetId: string; score: number | null }>>([]);
+  const [items, setItems] = useState<
+    Array<{ id: number; assetId: string; score: number | null; lat: number; lng: number }>
+  >([]);
 
   const handleLoad = async () => {
     setLoading(true);
@@ -26,6 +28,8 @@ export function MapScreen({ gateway }: { gateway: KoconiGateway }) {
           id: placement.id,
           assetId: placement.assetId,
           score: placement.matchScore,
+          lat: placement.lat,
+          lng: placement.lng,
         })),
       );
     } catch (e) {
@@ -48,12 +52,36 @@ export function MapScreen({ gateway }: { gateway: KoconiGateway }) {
       {loading ? <ActivityIndicator size="small" color="#5BC0BE" /> : null}
       {error ? <Text style={styles.error}>Error: {error}</Text> : null}
 
+      <View style={styles.mapCard}>
+        <Text style={styles.mapTitle}>Map Preview</Text>
+        <View style={styles.mapCanvas}>
+          {items.map((item) => {
+            const x = ((item.lng + 180) / 360) * 100;
+            const y = (1 - (item.lat + 90) / 180) * 100;
+            return (
+              <View
+                key={`pin-${item.id}`}
+                style={[
+                  styles.pin,
+                  {
+                    left: `${Math.max(2, Math.min(98, x))}%`,
+                    top: `${Math.max(2, Math.min(98, y))}%`,
+                  },
+                ]}
+              />
+            );
+          })}
+        </View>
+        <Text style={styles.mapNote}>world bounds: lat -90..90 / lng -180..180</Text>
+      </View>
+
       <View style={styles.list}>
         {items.map((item) => (
           <View key={item.id} style={styles.card}>
             <Text style={styles.cardTitle}>#{item.id}</Text>
             <Text style={styles.cardText}>asset: {item.assetId}</Text>
             <Text style={styles.cardText}>score: {item.score ?? "n/a"}</Text>
+            <Text style={styles.cardText}>lat/lng: {item.lat.toFixed(4)}, {item.lng.toFixed(4)}</Text>
           </View>
         ))}
         {!loading && items.length === 0 && !error ? (
@@ -91,6 +119,38 @@ const styles = StyleSheet.create({
   error: {
     color: "#FF8FA3",
     fontSize: 13,
+  },
+  mapCard: {
+    backgroundColor: "#1C2541",
+    borderRadius: 10,
+    padding: 12,
+    gap: 8,
+  },
+  mapTitle: {
+    color: "#5BC0BE",
+    fontWeight: "700",
+  },
+  mapCanvas: {
+    position: "relative",
+    height: 180,
+    borderRadius: 8,
+    backgroundColor: "#12213F",
+    borderWidth: 1,
+    borderColor: "#2B3659",
+    overflow: "hidden",
+  },
+  pin: {
+    position: "absolute",
+    width: 8,
+    height: 8,
+    marginLeft: -4,
+    marginTop: -4,
+    borderRadius: 4,
+    backgroundColor: "#5BC0BE",
+  },
+  mapNote: {
+    color: "#8CA8B1",
+    fontSize: 11,
   },
   list: {
     gap: 10,

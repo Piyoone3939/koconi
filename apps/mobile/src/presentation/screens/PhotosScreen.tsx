@@ -1,6 +1,8 @@
 import { useState } from "react";
+import * as ImagePicker from "expo-image-picker";
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -26,6 +28,7 @@ export function PhotosScreen({ gateway }: { gateway: KoconiGateway }) {
   const [lng, setLng] = useState("139.767125");
   const [imageKey, setImageKey] = useState("uploads/demo.jpg");
   const [imageUrl, setImageUrl] = useState("https://picsum.photos/512/512");
+  const [pickedImageUri, setPickedImageUri] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,11 +45,11 @@ export function PhotosScreen({ gateway }: { gateway: KoconiGateway }) {
       if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)) {
         throw new Error("lat/lng must be valid numbers");
       }
-      if (!imageUrl.trim()) {
-        throw new Error("image URL is required for match flow");
+      if (!pickedImageUri && !imageUrl.trim()) {
+        throw new Error("pick an image or set image URL");
       }
 
-      const imageBlob = await fetchImageAsBlob(imageUrl.trim());
+      const imageBlob = await fetchImageAsBlob((pickedImageUri ?? imageUrl).trim());
 
       const { photo, matchResult } = await createPhotoAndMatch(
         gateway,
@@ -87,6 +90,27 @@ export function PhotosScreen({ gateway }: { gateway: KoconiGateway }) {
     }
   };
 
+  const handlePickImage = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setError("media library permission is required");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      quality: 0.8,
+      allowsEditing: false,
+    });
+
+    if (result.canceled || !result.assets[0]) {
+      return;
+    }
+
+    setError(null);
+    setPickedImageUri(result.assets[0].uri);
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Photos</Text>
@@ -96,6 +120,17 @@ export function PhotosScreen({ gateway }: { gateway: KoconiGateway }) {
       <Field label="Latitude" value={lat} onChangeText={setLat} keyboardType="decimal-pad" />
       <Field label="Longitude" value={lng} onChangeText={setLng} keyboardType="decimal-pad" />
       <Field label="Image Key" value={imageKey} onChangeText={setImageKey} />
+
+      <Pressable style={styles.secondaryButton} onPress={handlePickImage}>
+        <Text style={styles.secondaryButtonText}>Pick Image From Library</Text>
+      </Pressable>
+      {pickedImageUri ? (
+        <View style={styles.previewCard}>
+          <Image source={{ uri: pickedImageUri }} style={styles.previewImage} />
+          <Text style={styles.previewLabel}>picked image will be used for AI match</Text>
+        </View>
+      ) : null}
+
       <Field label="Image URL (for AI match)" value={imageUrl} onChangeText={setImageUrl} />
 
       <Pressable style={styles.primaryButton} onPress={handleSubmit} disabled={loading}>
@@ -192,6 +227,33 @@ const styles = StyleSheet.create({
   primaryButtonText: {
     color: "#0B132B",
     fontWeight: "700",
+  },
+  secondaryButton: {
+    backgroundColor: "#273C75",
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  secondaryButtonText: {
+    color: "#D7E3FF",
+    fontWeight: "700",
+  },
+  previewCard: {
+    backgroundColor: "#1C2541",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#2B3659",
+    padding: 10,
+    gap: 6,
+  },
+  previewImage: {
+    width: "100%",
+    height: 180,
+    borderRadius: 8,
+  },
+  previewLabel: {
+    color: "#AFC5CD",
+    fontSize: 12,
   },
   error: {
     color: "#FF8FA3",
