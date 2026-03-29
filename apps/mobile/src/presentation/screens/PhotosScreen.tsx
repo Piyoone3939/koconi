@@ -7,7 +7,6 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import {
@@ -16,18 +15,27 @@ import {
 } from "../../application/usecases/photo-placement-flow";
 import type { KoconiGateway } from "../../domain/ports/koconi-gateway";
 
+const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000";
+
 type ResultState = {
   photoId?: number;
   topAssetId?: string;
   placementId?: number;
 };
 
-export function PhotosScreen({ gateway }: { gateway: KoconiGateway }) {
-  const [deviceId, setDeviceId] = useState("demo-device");
-  const [lat, setLat] = useState("35.681236");
-  const [lng, setLng] = useState("139.767125");
-  const [imageKey, setImageKey] = useState("uploads/demo.jpg");
-  const [imageUrl, setImageUrl] = useState("https://picsum.photos/512/512");
+export type AlbumPhotoInput = {
+  uri: string;
+  photoId: number;
+  createdAt: string;
+};
+
+export function PhotosScreen({
+  gateway,
+  onPhotoPosted,
+}: {
+  gateway: KoconiGateway;
+  onPhotoPosted?: (item: AlbumPhotoInput) => void;
+}) {
   const [pickedImageUri, setPickedImageUri] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -40,28 +48,26 @@ export function PhotosScreen({ gateway }: { gateway: KoconiGateway }) {
     setResult({});
 
     try {
-      const parsedLat = Number(lat);
-      const parsedLng = Number(lng);
-      if (!Number.isFinite(parsedLat) || !Number.isFinite(parsedLng)) {
-        throw new Error("lat/lng must be valid numbers");
-      }
-      if (!pickedImageUri && !imageUrl.trim()) {
-        throw new Error("pick an image or set image URL");
+      if (!pickedImageUri) {
+        throw new Error("pick or capture an image first");
       }
 
-      const imageBlob = await fetchImageAsBlob((pickedImageUri ?? imageUrl).trim());
+      const parsedLat = 35.681236;
+      const parsedLng = 139.767125;
+      const now = new Date();
+      const uploadFile = buildUploadFile(pickedImageUri, now);
 
       const { photo, matchResult } = await createPhotoAndMatch(
         gateway,
         {
-          deviceId: deviceId.trim(),
+          deviceId: "demo-device",
           lat: parsedLat,
           lng: parsedLng,
-          capturedAt: new Date().toISOString(),
-          imageKey: imageKey.trim(),
+          capturedAt: now.toISOString(),
+          imageKey: `uploads/${now.getTime()}.jpg`,
         },
         {
-          file: imageBlob,
+          file: uploadFile,
           lat: parsedLat,
           lng: parsedLng,
           k: 5,
@@ -83,8 +89,18 @@ export function PhotosScreen({ gateway }: { gateway: KoconiGateway }) {
         topAssetId: matchResult.candidates[0]?.assetId,
         placementId: placement?.id,
       });
+      onPhotoPosted?.({
+        uri: pickedImageUri,
+        photoId: photo.id,
+        createdAt: now.toISOString(),
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unknown error");
+      const rawMessage = e instanceof Error ? e.message : "Unknown error";
+      if (rawMessage.includes("Network request failed")) {
+        setError(`Network request failed. API endpoint: ${apiBaseUrl}`);
+      } else {
+        setError(rawMessage);
+      }
     } finally {
       setLoading(false);
     }
@@ -111,30 +127,50 @@ export function PhotosScreen({ gateway }: { gateway: KoconiGateway }) {
     setPickedImageUri(result.assets[0].uri);
   };
 
+  const handleTakePhoto = async () => {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      setError("camera permission is required");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ["images"],
+      quality: 0.8,
+      allowsEditing: false,
+      cameraType: ImagePicker.CameraType.back,
+    });
+
+    if (result.canceled || !result.assets[0]) {
+      return;
+    }
+
+    setError(null);
+    setPickedImageUri(result.assets[0].uri);
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Photos</Text>
-      <Text style={styles.subTitle}>Photo to AI match to placement creation (MVP)</Text>
+      <Text style={styles.subTitle}>Pick or capture a photo and post it</Text>
 
-      <Field label="Device ID" value={deviceId} onChangeText={setDeviceId} />
-      <Field label="Latitude" value={lat} onChangeText={setLat} keyboardType="decimal-pad" />
-      <Field label="Longitude" value={lng} onChangeText={setLng} keyboardType="decimal-pad" />
-      <Field label="Image Key" value={imageKey} onChangeText={setImageKey} />
-
-      <Pressable style={styles.secondaryButton} onPress={handlePickImage}>
-        <Text style={styles.secondaryButtonText}>Pick Image From Library</Text>
-      </Pressable>
+      <View style={styles.actionRow}>
+        <Pressable style={styles.secondaryButton} onPress={handlePickImage}>
+          <Text style={styles.secondaryButtonText}>Pick Image From Library</Text>
+        </Pressable>
+        <Pressable style={styles.secondaryButton} onPress={handleTakePhoto}>
+          <Text style={styles.secondaryButtonText}>Take Photo</Text>
+        </Pressable>
+      </View>
       {pickedImageUri ? (
         <View style={styles.previewCard}>
           <Image source={{ uri: pickedImageUri }} style={styles.previewImage} />
-          <Text style={styles.previewLabel}>picked image will be used for AI match</Text>
+          <Text style={styles.previewLabel}>selected image preview</Text>
         </View>
       ) : null}
 
-      <Field label="Image URL (for AI match)" value={imageUrl} onChangeText={setImageUrl} />
-
       <Pressable style={styles.primaryButton} onPress={handleSubmit} disabled={loading}>
-        <Text style={styles.primaryButtonText}>{loading ? "Submitting..." : "Run Full Flow"}</Text>
+        <Text style={styles.primaryButtonText}>{loading ? "Submitting..." : "Post Photo"}</Text>
       </Pressable>
 
       {loading ? <ActivityIndicator size="small" color="#5BC0BE" /> : null}
@@ -142,7 +178,7 @@ export function PhotosScreen({ gateway }: { gateway: KoconiGateway }) {
 
       {(result.photoId || result.topAssetId || result.placementId) && !error ? (
         <View style={styles.resultCard}>
-          <Text style={styles.resultTitle}>Result</Text>
+          <Text style={styles.resultTitle}>Posted</Text>
           <Text style={styles.resultText}>photoId: {result.photoId ?? "-"}</Text>
           <Text style={styles.resultText}>topAssetId: {result.topAssetId ?? "-"}</Text>
           <Text style={styles.resultText}>placementId: {result.placementId ?? "not created"}</Text>
@@ -152,37 +188,13 @@ export function PhotosScreen({ gateway }: { gateway: KoconiGateway }) {
   );
 }
 
-function Field({
-  label,
-  value,
-  onChangeText,
-  keyboardType,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (value: string) => void;
-  keyboardType?: "default" | "decimal-pad";
-}) {
-  return (
-    <View style={styles.fieldWrap}>
-      <Text style={styles.fieldLabel}>{label}</Text>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        keyboardType={keyboardType ?? "default"}
-        style={styles.input}
-        autoCapitalize="none"
-      />
-    </View>
-  );
-}
-
-async function fetchImageAsBlob(url: string): Promise<Blob> {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Image fetch failed: ${response.status}`);
-  }
-  return response.blob();
+function buildUploadFile(uri: string, capturedAt: Date): { uri: string; name: string; type: string } {
+  const guessedType = uri.endsWith(".png") ? "image/png" : "image/jpeg";
+  return {
+    uri,
+    name: `photo-${capturedAt.getTime()}.${guessedType === "image/png" ? "png" : "jpg"}`,
+    type: guessedType,
+  };
 }
 
 const styles = StyleSheet.create({
@@ -200,23 +212,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginBottom: 2,
   },
-  fieldWrap: {
-    gap: 6,
-  },
-  fieldLabel: {
-    color: "#CDE6E5",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  input: {
-    backgroundColor: "#1C2541",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#2B3659",
-    color: "#FFFFFF",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
   primaryButton: {
     backgroundColor: "#5BC0BE",
     borderRadius: 10,
@@ -233,6 +228,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 10,
     alignItems: "center",
+    flex: 1,
+  },
+  actionRow: {
+    flexDirection: "row",
+    gap: 8,
   },
   secondaryButtonText: {
     color: "#D7E3FF",
