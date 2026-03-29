@@ -48,7 +48,7 @@ export type CreatePhotoCommand = {
 
 export type MatchPhotoCommand = {
   photoId: number;
-  file: Blob;
+  file: Blob | { uri: string; name: string; type: string };
   lat?: number;
   lng?: number;
   k?: number;

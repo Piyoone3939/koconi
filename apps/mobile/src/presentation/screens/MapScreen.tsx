@@ -1,16 +1,20 @@
-import { useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import MapView, { Marker } from "react-native-maps";
 import { listPlacements } from "../../application/usecases/photo-placement-flow";
 import type { KoconiGateway } from "../../domain/ports/koconi-gateway";
 
+const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000";
+
 export function MapScreen({ gateway }: { gateway: KoconiGateway }) {
+  const mapRef = useRef<MapView | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<
     Array<{ id: number; assetId: string; score: number | null; lat: number; lng: number }>
   >([]);
 
-  const handleLoad = async () => {
+  const handleLoad = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -23,155 +27,141 @@ export function MapScreen({ gateway }: { gateway: KoconiGateway }) {
         limit: 30,
       });
 
-      setItems(
-        placements.map((placement) => ({
-          id: placement.id,
-          assetId: placement.assetId,
-          score: placement.matchScore,
-          lat: placement.lat,
-          lng: placement.lng,
-        })),
-      );
+      const nextItems = placements.map((placement) => ({
+        id: placement.id,
+        assetId: placement.assetId,
+        score: placement.matchScore,
+        lat: placement.lat,
+        lng: placement.lng,
+      }));
+      setItems(nextItems);
+
+      if (nextItems.length > 0) {
+        mapRef.current?.fitToCoordinates(
+          nextItems.map((item) => ({ latitude: item.lat, longitude: item.lng })),
+          {
+            edgePadding: { top: 60, right: 60, bottom: 60, left: 60 },
+            animated: true,
+          },
+        );
+      }
     } catch (e) {
       setItems([]);
-      setError(e instanceof Error ? e.message : "Unknown error");
+      const rawMessage = e instanceof Error ? e.message : "Unknown error";
+      if (rawMessage.includes("Network request failed")) {
+        setError(`Network request failed. API endpoint: ${apiBaseUrl}`);
+      } else {
+        setError(rawMessage);
+      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [gateway]);
+
+  useEffect(() => {
+    void handleLoad();
+  }, [handleLoad]);
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Map</Text>
-      <Text style={styles.subTitle}>Saved placements list (MVP)</Text>
-
-      <Pressable style={styles.primaryButton} onPress={handleLoad} disabled={loading}>
-        <Text style={styles.primaryButtonText}>{loading ? "Loading..." : "Load Placements"}</Text>
-      </Pressable>
-
-      {loading ? <ActivityIndicator size="small" color="#5BC0BE" /> : null}
-      {error ? <Text style={styles.error}>Error: {error}</Text> : null}
-
-      <View style={styles.mapCard}>
-        <Text style={styles.mapTitle}>Map Preview</Text>
-        <View style={styles.mapCanvas}>
-          {items.map((item) => {
-            const x = ((item.lng + 180) / 360) * 100;
-            const y = (1 - (item.lat + 90) / 180) * 100;
-            return (
-              <View
-                key={`pin-${item.id}`}
-                style={[
-                  styles.pin,
-                  {
-                    left: `${Math.max(2, Math.min(98, x))}%`,
-                    top: `${Math.max(2, Math.min(98, y))}%`,
-                  },
-                ]}
-              />
-            );
-          })}
-        </View>
-        <Text style={styles.mapNote}>world bounds: lat -90..90 / lng -180..180</Text>
-      </View>
-
-      <View style={styles.list}>
+    <View style={styles.container}>
+      <MapView
+        ref={mapRef}
+        style={styles.mapCanvas}
+        initialRegion={{
+          latitude: items[0]?.lat ?? 35.681236,
+          longitude: items[0]?.lng ?? 139.767125,
+          latitudeDelta: 0.08,
+          longitudeDelta: 0.08,
+        }}
+      >
         {items.map((item) => (
-          <View key={item.id} style={styles.card}>
-            <Text style={styles.cardTitle}>#{item.id}</Text>
-            <Text style={styles.cardText}>asset: {item.assetId}</Text>
-            <Text style={styles.cardText}>score: {item.score ?? "n/a"}</Text>
-            <Text style={styles.cardText}>lat/lng: {item.lat.toFixed(4)}, {item.lng.toFixed(4)}</Text>
-          </View>
+          <Marker
+            key={`pin-${item.id}`}
+            coordinate={{ latitude: item.lat, longitude: item.lng }}
+            title={`#${item.id}`}
+            description={`${item.assetId} / score: ${item.score ?? "n/a"}`}
+          />
         ))}
-        {!loading && items.length === 0 && !error ? (
-          <Text style={styles.empty}>No placements loaded yet.</Text>
-        ) : null}
+      </MapView>
+
+      <View style={styles.overlayTop}>
+        <Pressable style={styles.refreshButton} onPress={handleLoad} disabled={loading}>
+          <Text style={styles.refreshButtonText}>{loading ? "..." : "Reload"}</Text>
+        </Pressable>
       </View>
-    </ScrollView>
+
+      {loading ? (
+        <View style={styles.overlayCenter}>
+          <ActivityIndicator size="small" color="#0B132B" />
+        </View>
+      ) : null}
+
+      {error ? (
+        <View style={styles.overlayBottom}>
+          <Text style={styles.error}>{error}</Text>
+        </View>
+      ) : null}
+      {!loading && items.length === 0 && !error ? (
+        <View style={styles.overlayBottom}>
+          <Text style={styles.empty}>No placements yet</Text>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    padding: 18,
-    gap: 12,
+    flex: 1,
+    backgroundColor: "#FFFFFF",
   },
-  title: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: "#FFFFFF",
+  mapCanvas: {
+    ...StyleSheet.absoluteFillObject,
   },
-  subTitle: {
-    color: "#9CB4BD",
-    fontSize: 13,
+  overlayTop: {
+    position: "absolute",
+    top: 12,
+    right: 12,
   },
-  primaryButton: {
-    backgroundColor: "#5BC0BE",
-    borderRadius: 10,
-    paddingVertical: 12,
+  overlayCenter: {
+    position: "absolute",
+    left: "50%",
+    top: "50%",
+    marginLeft: -18,
+    marginTop: -18,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255,255,255,0.9)",
     alignItems: "center",
+    justifyContent: "center",
   },
-  primaryButtonText: {
-    color: "#0B132B",
+  overlayBottom: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    bottom: 12,
+    backgroundColor: "rgba(11, 19, 43, 0.82)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  refreshButton: {
+    backgroundColor: "rgba(11, 19, 43, 0.82)",
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  refreshButtonText: {
+    color: "#FFFFFF",
     fontWeight: "700",
   },
   error: {
-    color: "#FF8FA3",
-    fontSize: 13,
-  },
-  mapCard: {
-    backgroundColor: "#1C2541",
-    borderRadius: 10,
-    padding: 12,
-    gap: 8,
-  },
-  mapTitle: {
-    color: "#5BC0BE",
-    fontWeight: "700",
-  },
-  mapCanvas: {
-    position: "relative",
-    height: 180,
-    borderRadius: 8,
-    backgroundColor: "#12213F",
-    borderWidth: 1,
-    borderColor: "#2B3659",
-    overflow: "hidden",
-  },
-  pin: {
-    position: "absolute",
-    width: 8,
-    height: 8,
-    marginLeft: -4,
-    marginTop: -4,
-    borderRadius: 4,
-    backgroundColor: "#5BC0BE",
-  },
-  mapNote: {
-    color: "#8CA8B1",
-    fontSize: 11,
-  },
-  list: {
-    gap: 10,
-    marginTop: 8,
-  },
-  card: {
-    backgroundColor: "#1C2541",
-    borderRadius: 10,
-    padding: 12,
-    gap: 4,
-  },
-  cardTitle: {
-    color: "#CDE6E5",
-    fontWeight: "700",
-  },
-  cardText: {
-    color: "#AFC5CD",
+    color: "#FFD1D9",
     fontSize: 13,
   },
   empty: {
-    color: "#78909C",
-    marginTop: 6,
+    color: "#E2E8F0",
+    fontSize: 13,
   },
 });

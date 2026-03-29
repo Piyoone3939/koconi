@@ -7,6 +7,7 @@ type RequestOptions = {
   headers?: HeadersInit;
   body?: BodyInit | null;
   query?: Record<string, QueryValue>;
+  timeoutMs?: number;
 };
 
 export class HttpError extends Error {
@@ -25,11 +26,11 @@ export class HttpClient {
   private readonly baseUrl: string;
 
   constructor(baseUrl: string) {
-    this.baseUrl = baseUrl;
+    this.baseUrl = normalizeBaseUrl(baseUrl);
   }
 
   async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-    const url = new URL(path, this.baseUrl);
+    const url = new URL(normalizePath(path), this.baseUrl);
 
     if (options.query) {
       for (const [key, value] of Object.entries(options.query)) {
@@ -40,11 +41,29 @@ export class HttpClient {
       }
     }
 
-    const response = await fetch(url, {
-      method: options.method ?? "GET",
-      headers: options.headers,
-      body: options.body,
-    });
+    const controller = new AbortController();
+    const timeoutMs = options.timeoutMs ?? 10_000;
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeoutMs);
+
+    let response: Response;
+    try {
+      response = await fetch(url, {
+        method: options.method ?? "GET",
+        headers: options.headers,
+        body: options.body,
+        signal: controller.signal,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (controller.signal.aborted) {
+        throw new Error(`Network timed out (${timeoutMs}ms): ${url.toString()}`);
+      }
+      throw new Error(`Network request failed: ${url.toString()} (${message})`);
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     const payload = await this.readPayload(response);
     if (!response.ok) {
@@ -72,4 +91,18 @@ export class HttpClient {
     const value = recordPayload.Error ?? recordPayload.error;
     return typeof value === "string" ? value : null;
   }
+}
+
+function normalizeBaseUrl(baseUrl: string): string {
+  if (!baseUrl.endsWith("/")) {
+    return `${baseUrl}/`;
+  }
+  return baseUrl;
+}
+
+function normalizePath(path: string): string {
+  if (path.startsWith("/")) {
+    return path.slice(1);
+  }
+  return path;
 }

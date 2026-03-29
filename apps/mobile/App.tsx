@@ -1,37 +1,117 @@
 import { StatusBar } from "expo-status-bar";
-import { useMemo, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { createKoconiGateway } from "./src/infrastructure/http";
+import { AlbumScreen } from "./src/presentation/screens/AlbumScreen";
 import { MapScreen } from "./src/presentation/screens/MapScreen";
-import { PhotosScreen } from "./src/presentation/screens/PhotosScreen";
+import { PhotosScreen, type AlbumPhotoInput } from "./src/presentation/screens/PhotosScreen";
 import { ProfileScreen } from "./src/presentation/screens/ProfileScreen";
 
-type TabKey = "map" | "photos" | "profile";
+type TabKey = "map" | "photos" | "album" | "profile";
+
+type AlbumItem = {
+  id: string;
+  uri: string;
+  photoId: number;
+  createdAt: string;
+};
+
+const ALBUM_STORAGE_KEY = "koconi:album";
 
 export default function App() {
   const gateway = useMemo(() => createKoconiGateway(), []);
   const [tab, setTab] = useState<TabKey>("map");
+  const [albumItems, setAlbumItems] = useState<AlbumItem[]>([]);
+  const [albumLoaded, setAlbumLoaded] = useState(false);
 
-  const activeLabel = tab === "map" ? "Map" : tab === "photos" ? "Photos" : "Profile";
+  useEffect(() => {
+    const loadAlbum = async () => {
+      try {
+        const raw = await AsyncStorage.getItem(ALBUM_STORAGE_KEY);
+        if (!raw) {
+          setAlbumLoaded(true);
+          return;
+        }
+
+        const parsed = JSON.parse(raw) as unknown;
+        if (!Array.isArray(parsed)) {
+          setAlbumLoaded(true);
+          return;
+        }
+
+        const safeItems = parsed.filter((item): item is AlbumItem => {
+          if (!item || typeof item !== "object") {
+            return false;
+          }
+          const candidate = item as Record<string, unknown>;
+          return (
+            typeof candidate.id === "string" &&
+            typeof candidate.uri === "string" &&
+            typeof candidate.photoId === "number" &&
+            typeof candidate.createdAt === "string"
+          );
+        });
+
+        setAlbumItems(safeItems);
+      } catch {
+        setAlbumItems([]);
+      } finally {
+        setAlbumLoaded(true);
+      }
+    };
+
+    void loadAlbum();
+  }, []);
+
+  useEffect(() => {
+    if (!albumLoaded) {
+      return;
+    }
+
+    void AsyncStorage.setItem(ALBUM_STORAGE_KEY, JSON.stringify(albumItems));
+  }, [albumItems, albumLoaded]);
+
+  const handlePhotoPosted = (item: AlbumPhotoInput) => {
+    setAlbumItems((prev) => [
+      {
+        id: `${item.photoId}-${item.createdAt}`,
+        uri: item.uri,
+        photoId: item.photoId,
+        createdAt: item.createdAt,
+      },
+      ...prev,
+    ]);
+  };
+
+  const activeLabel =
+    tab === "map" ? "Map" : tab === "photos" ? "Photos" : tab === "album" ? "Album" : "Profile";
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0B132B" }}>
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: tab === "map" ? "#FFFFFF" : "#0B132B" }}
+      edges={["top"]}
+    >
       <StatusBar style="light" />
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Koconi Mobile</Text>
-        <Text style={styles.headerSubTitle}>Current: {activeLabel}</Text>
-      </View>
+      {tab !== "map" ? (
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Koconi Mobile</Text>
+          <Text style={styles.headerSubTitle}>Current: {activeLabel}</Text>
+        </View>
+      ) : null}
 
       <View style={styles.content}>
         {tab === "map" ? <MapScreen gateway={gateway} /> : null}
-        {tab === "photos" ? <PhotosScreen gateway={gateway} /> : null}
+        {tab === "photos" ? <PhotosScreen gateway={gateway} onPhotoPosted={handlePhotoPosted} /> : null}
+        {tab === "album" ? <AlbumScreen items={albumItems} /> : null}
         {tab === "profile" ? <ProfileScreen /> : null}
       </View>
 
       <View style={styles.tabBar}>
         <TabButton label="Map" active={tab === "map"} onPress={() => setTab("map")} />
         <TabButton label="Photos" active={tab === "photos"} onPress={() => setTab("photos")} />
+        <TabButton label="Album" active={tab === "album"} onPress={() => setTab("album")} />
         <TabButton label="Profile" active={tab === "profile"} onPress={() => setTab("profile")} />
       </View>
     </SafeAreaView>

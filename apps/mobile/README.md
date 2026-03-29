@@ -70,6 +70,24 @@ Example:
 EXPO_PUBLIC_API_BASE_URL=http://localhost:3000
 ```
 
+If you run backend via nginx proxy (docker compose), use:
+
+```bash
+EXPO_PUBLIC_API_BASE_URL=http://<YOUR_PC_LAN_IP>/api
+```
+
+Example on this machine:
+
+```bash
+EXPO_PUBLIC_API_BASE_URL=http://192.168.1.4/api
+```
+
+If you expose API service directly on host port 3000 via docker compose, use:
+
+```bash
+EXPO_PUBLIC_API_BASE_URL=http://192.168.1.4:3000
+```
+
 If not set, the app currently falls back to `http://localhost:3000`.
 
 ## Architecture Notes
