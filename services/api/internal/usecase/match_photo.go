@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5"
 	"koconi/api/internal/domain"
 )
 
@@ -56,12 +57,15 @@ func (u *MatchPhotoUseCase) Execute(
 	}
 
 	if _, err := u.photoRepo.GetByID(ctx, photoID); err != nil {
-		return domain.AIMatchResult{}, fmt.Errorf("%w: %v", ErrPhotoNotFound, err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return domain.AIMatchResult{}, ErrPhotoNotFound
+		}
+		return domain.AIMatchResult{}, fmt.Errorf("photoRepo.GetByID: %w", err)
 	}
 
 	result, err := u.aiClient.Match(ctx, image, lat, lng, k)
 	if err != nil {
-		return domain.AIMatchResult{}, fmt.Errorf("%w: %v", ErrAIMatchFailed, err)
+		return domain.AIMatchResult{}, errors.Join(ErrAIMatchFailed, err)
 	}
 
 	return result, nil
