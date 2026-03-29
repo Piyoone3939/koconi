@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "Koconi Mobile",
+    "slug": "koconi-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "platforms": ["ios", "android"],
+    "jsEngine": "hermes"
+  }
+}

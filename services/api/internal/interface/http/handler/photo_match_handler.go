@@ -5,11 +5,10 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"strings"
+
+	"koconi/api/internal/usecase"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v5"
-	"koconi/api/internal/usecase"
 )
 
 type PhotoMatchHandler struct {
@@ -79,15 +78,14 @@ func (h *PhotoMatchHandler) MatchPhoto(w http.ResponseWriter, r *http.Request) {
 	result, err := h.matchUC.Execute(r.Context(), photoID, buf, latPtr, lngPtr, k)
 	if err != nil {
 		switch {
-		case errors.Is(err, pgx.ErrNoRows):
+		case errors.Is(err, usecase.ErrPhotoNotFound):
 			writeNotFound(w, "photo not found")
-		case strings.Contains(err.Error(), "ai match failed"),
-			strings.Contains(err.Error(), "connection refused"),
-			strings.Contains(err.Error(), "Client.Timeout"):
+		case errors.Is(err, usecase.ErrAIMatchFailed):
 			writeUpstreamError(w, "ai service unavailable")
-		case strings.Contains(err.Error(), "required"),
-			strings.Contains(err.Error(), "invalid"),
-			strings.Contains(err.Error(), "must be"):
+		case errors.Is(err, usecase.ErrInvalidPhotoID),
+			errors.Is(err, usecase.ErrImageRequired),
+			errors.Is(err, usecase.ErrInvalidLat),
+			errors.Is(err, usecase.ErrInvalidLng):
 			writeBadRequest(w, err.Error())
 		default:
 			writeInternalError(w, "failed to match photo")

@@ -35,4 +35,4 @@ CREATE INDEX IF NOT EXISTS idx_placements_photo_id ON landmark_placements(photo_
 CREATE INDEX IF NOT EXISTS idx_placements_lat_lng ON landmark_placements(lat, lng);
 CREATE INDEX IF NOT EXISTS idx_placements_created_at ON landmark_placements(created_at DESC);
 
-COMMIT;docker compose exec -T ai sh -lc "ls -l /app/faiss.index /app/meta.json"
+COMMIT;
