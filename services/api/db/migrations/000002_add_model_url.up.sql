@@ -1,0 +1,6 @@
+BEGIN;
+
+ALTER TABLE landmark_placements
+    ADD COLUMN IF NOT EXISTS model_url TEXT NOT NULL DEFAULT '';
+
+COMMIT;

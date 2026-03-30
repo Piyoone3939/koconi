@@ -7,6 +7,7 @@ import type {
   ListPlacementsByBoundsQuery,
   MatchPhotoCommand,
   Photo,
+  Photo3DStatus,
 } from "../../domain/models/koconi";
 import type { KoconiGateway } from "../../domain/ports/koconi-gateway";
 import { HttpClient } from "./http-client";
@@ -51,19 +52,38 @@ export class KoconiGatewayHttp implements KoconiGateway {
   }
 
   async createPhoto(command: CreatePhotoCommand): Promise<Photo> {
-    const requestBody: components["schemas"]["CreatePhotoRequest"] = {
-      device_id: command.deviceId,
-      lat: command.lat,
-      lng: command.lng,
-      captured_at: command.capturedAt,
-      image_key: command.imageKey,
-    };
+    let response: CreatePhotoResponse;
 
-    const response = await this.httpClient.request<CreatePhotoResponse>("/v1/photos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestBody),
-    });
+    if (command.file) {
+      // 画像ファイルあり: multipart送信（サーバー側でAI 3Dモデル生成を自動実行）
+      const formData = new FormData();
+      formData.append("device_id", command.deviceId);
+      formData.append("lat", String(command.lat));
+      formData.append("lng", String(command.lng));
+      formData.append("captured_at", command.capturedAt);
+      formData.append("image_key", command.imageKey);
+      formData.append("file", command.file as unknown as Blob);
+
+      response = await this.httpClient.request<CreatePhotoResponse>("/v1/photos", {
+        method: "POST",
+        body: formData,
+      });
+    } else {
+      // 画像なし: JSON送信（後方互換）
+      const requestBody: components["schemas"]["CreatePhotoRequest"] = {
+        device_id: command.deviceId,
+        lat: command.lat,
+        lng: command.lng,
+        captured_at: command.capturedAt,
+        image_key: command.imageKey,
+      };
+
+      response = await this.httpClient.request<CreatePhotoResponse>("/v1/photos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+      });
+    }
 
     const photo = response.photo ?? response.data?.photo;
     if (!photo) {
@@ -119,6 +139,7 @@ export class KoconiGatewayHttp implements KoconiGateway {
       scale: command.scale,
       rotation: command.rotation,
       match_score: command.matchScore,
+      model_url: command.modelUrl ?? "",
     };
 
     const response = await this.httpClient.request<CreatePlacementResponse>("/v1/placements", {
@@ -133,6 +154,21 @@ export class KoconiGatewayHttp implements KoconiGateway {
     }
 
     return mapPlacement(placement);
+  }
+
+  async getPhoto3DStatus(photoId: number): Promise<Photo3DStatus> {
+    const response = await this.httpClient.request<{
+      ok: boolean;
+      status: string;
+      model_url: string;
+      placement_id: number;
+    }>(`/v1/photos/${photoId}/3d_status`);
+
+    return {
+      status: (response.status ?? "failed") as Photo3DStatus["status"],
+      modelUrl: response.model_url ?? "",
+      placementId: response.placement_id ?? 0,
+    };
   }
 
   async listPlacementsByBounds(query: ListPlacementsByBoundsQuery): Promise<LandmarkPlacement[]> {
@@ -164,6 +200,7 @@ function mapPhoto(photo: components["schemas"]["Photo"]): Photo {
     lng: toNumber(source.lng ?? source.Lng),
     capturedAt: toString(source.captured_at ?? source.CapturedAt),
     imageKey: toString(source.image_key ?? source.ImageKey),
+    aiJobId: toString(source.ai_job_id ?? source.AIJobID),
     createdAt: toString(source.created_at ?? source.CreatedAt),
   };
 }
@@ -179,6 +216,7 @@ function mapPlacement(placement: components["schemas"]["LandmarkPlacement"]): La
     scale: toNumber(source.scale ?? source.Scale),
     rotation: toRotation((source.rotation ?? source.Rotation ?? []) as number[]),
     matchScore: toNullableNumber(source.match_score ?? source.MatchScore),
+    modelUrl: toString(source.model_url ?? source.ModelURL),
     createdAt: toString(source.created_at ?? source.CreatedAt),
   };
 }

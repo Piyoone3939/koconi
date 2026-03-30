@@ -30,6 +30,7 @@ func (u *CreateLandmarkPlacementUseCase) Execute(
 	scale float64,
 	rotation []float64,
 	matchScore *float64,
+	modelURL string,
 ) (domain.LandmarkPlacement, error) {
 	if photoID <= 0 {
 		return domain.LandmarkPlacement{}, errors.New("photo_id must be positive")
@@ -54,5 +55,5 @@ func (u *CreateLandmarkPlacementUseCase) Execute(
 		return domain.LandmarkPlacement{}, err
 	}
 
-	return u.placementRepo.Create(ctx, photoID, assetID, lat, lng, scale, rotation, matchScore)
+	return u.placementRepo.Create(ctx, photoID, assetID, lat, lng, scale, rotation, matchScore, modelURL)
 }

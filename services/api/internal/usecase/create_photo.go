@@ -9,11 +9,18 @@ import (
 )
 
 type CreatePhotoUseCase struct {
-	repo domain.PhotoRepository
+	repo     domain.PhotoRepository
+	aiClient domain.AIClient
 }
 
-func NewCreatePhotoUseCase(repo domain.PhotoRepository) *CreatePhotoUseCase {
-	return &CreatePhotoUseCase{repo: repo}
+func NewCreatePhotoUseCase(
+	repo domain.PhotoRepository,
+	aiClient domain.AIClient,
+) *CreatePhotoUseCase {
+	return &CreatePhotoUseCase{
+		repo:     repo,
+		aiClient: aiClient,
+	}
 }
 
 func (u *CreatePhotoUseCase) Execute(
@@ -22,6 +29,7 @@ func (u *CreatePhotoUseCase) Execute(
 	lat, lng float64,
 	capturedAt time.Time,
 	imageKey string,
+	imageBytes []byte, // nilの場合はAI処理をスキップ
 ) (domain.Photo, error) {
 	if deviceID == "" {
 		return domain.Photo{}, errors.New("device_id is required")
@@ -39,5 +47,27 @@ func (u *CreatePhotoUseCase) Execute(
 		return domain.Photo{}, errors.New("captured_at is required")
 	}
 
-	return u.repo.Create(ctx, deviceID, lat, lng, capturedAt, imageKey)
+	// 1. 写真DB登録
+	photo, err := u.repo.Create(ctx, deviceID, lat, lng, capturedAt, imageKey)
+	if err != nil {
+		return domain.Photo{}, err
+	}
+
+	// 2. 画像バイナリがない場合はAI処理スキップ
+	if len(imageBytes) == 0 {
+		return photo, nil
+	}
+
+	// 3. 非同期AIジョブを開始（失敗時も写真登録は成功）
+	jobID, err := u.aiClient.StartGenerate3DModel(ctx, imageBytes, "lowpoly")
+	if err != nil {
+		return photo, nil
+	}
+
+	// 4. job_idをDB保存
+	if updateErr := u.repo.UpdateAIJobID(ctx, photo.ID, jobID); updateErr == nil {
+		photo.AIJobID = jobID
+	}
+
+	return photo, nil
 }

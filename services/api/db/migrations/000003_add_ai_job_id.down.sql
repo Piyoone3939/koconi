@@ -1,0 +1,1 @@
+ALTER TABLE photos DROP COLUMN IF EXISTS ai_job_id;

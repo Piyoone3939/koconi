@@ -11,6 +11,7 @@ type LandmarkPlacementRepository interface {
 		scale float64,
 		rotation []float64,
 		matchScore *float64,
+		modelURL string,
 	) (LandmarkPlacement, error)
 
 	ListByBounds(
@@ -18,4 +19,7 @@ type LandmarkPlacementRepository interface {
 		minLat, maxLat, minLng, maxLng float64,
 		limit int,
 	) ([]LandmarkPlacement, error)
+
+	// 3Dモデルありのplacementを取得（重複作成防止用）
+	FindByPhotoIDWithModel(ctx context.Context, photoID int64) (*LandmarkPlacement, error)
 }

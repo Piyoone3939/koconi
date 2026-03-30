@@ -1,18 +1,34 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Callout, Marker } from "react-native-maps";
 import { listPlacements } from "../../application/usecases/photo-placement-flow";
 import type { KoconiGateway } from "../../domain/ports/koconi-gateway";
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000";
 
-export function MapScreen({ gateway }: { gateway: KoconiGateway }) {
+type PlacementItem = {
+  id: number;
+  photoId: number;
+  assetId: string;
+  score: number | null;
+  lat: number;
+  lng: number;
+  modelUrl: string;
+};
+
+export function MapScreen({
+  gateway,
+  refreshSignal,
+  onMarkerPhotoPress,
+}: {
+  gateway: KoconiGateway;
+  refreshSignal?: number;
+  onMarkerPhotoPress?: (photoId: number) => void;
+}) {
   const mapRef = useRef<MapView | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [items, setItems] = useState<
-    Array<{ id: number; assetId: string; score: number | null; lat: number; lng: number }>
-  >([]);
+  const [items, setItems] = useState<PlacementItem[]>([]);
 
   const handleLoad = useCallback(async () => {
     setLoading(true);
@@ -27,12 +43,14 @@ export function MapScreen({ gateway }: { gateway: KoconiGateway }) {
         limit: 30,
       });
 
-      const nextItems = placements.map((placement) => ({
+      const nextItems: PlacementItem[] = placements.map((placement) => ({
         id: placement.id,
+        photoId: placement.photoId,
         assetId: placement.assetId,
         score: placement.matchScore,
         lat: placement.lat,
         lng: placement.lng,
+        modelUrl: placement.modelUrl,
       }));
       setItems(nextItems);
 
@@ -62,6 +80,13 @@ export function MapScreen({ gateway }: { gateway: KoconiGateway }) {
     void handleLoad();
   }, [handleLoad]);
 
+  useEffect(() => {
+    if (refreshSignal === undefined) {
+      return;
+    }
+    void handleLoad();
+  }, [refreshSignal, handleLoad]);
+
   return (
     <View style={styles.container}>
       <MapView
@@ -78,9 +103,31 @@ export function MapScreen({ gateway }: { gateway: KoconiGateway }) {
           <Marker
             key={`pin-${item.id}`}
             coordinate={{ latitude: item.lat, longitude: item.lng }}
-            title={`#${item.id}`}
-            description={`${item.assetId} / score: ${item.score ?? "n/a"}`}
-          />
+            onPress={() => onMarkerPhotoPress?.(item.photoId)}
+          >
+            {/* 3Dモデルありのピンはカスタムビューで区別 */}
+            <View style={[styles.pinContainer, item.modelUrl ? styles.pinWith3D : styles.pinWithout3D]}>
+              <Text style={styles.pinEmoji}>{item.modelUrl ? "🔷" : "📍"}</Text>
+              {item.modelUrl ? (
+                <View style={styles.pin3DBadge}>
+                  <Text style={styles.pin3DBadgeText}>3D</Text>
+                </View>
+              ) : null}
+            </View>
+            <Callout onPress={() => onMarkerPhotoPress?.(item.photoId)}>
+              <View style={styles.callout}>
+                <Text style={styles.calloutTitle}>
+                  {item.modelUrl ? "🔷 3Dピン" : "📍 写真ピン"} #{item.id}
+                </Text>
+                {item.modelUrl ? (
+                  <Text style={styles.calloutModel} numberOfLines={1}>
+                    モデル: {item.modelUrl.split("/").pop()}
+                  </Text>
+                ) : null}
+                <Text style={styles.calloutTap}>タップで写真を表示</Text>
+              </View>
+            </Callout>
+          </Marker>
         ))}
       </MapView>
 
@@ -117,6 +164,53 @@ const styles = StyleSheet.create({
   },
   mapCanvas: {
     ...StyleSheet.absoluteFillObject,
+  },
+  pinContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  pinWith3D: {
+    // 3Dモデルありピン
+  },
+  pinWithout3D: {
+    // 通常ピン
+  },
+  pinEmoji: {
+    fontSize: 32,
+  },
+  pin3DBadge: {
+    position: "absolute",
+    bottom: -2,
+    right: -6,
+    backgroundColor: "#5BC0BE",
+    borderRadius: 6,
+    paddingHorizontal: 3,
+    paddingVertical: 1,
+  },
+  pin3DBadgeText: {
+    color: "#0B132B",
+    fontSize: 8,
+    fontWeight: "700",
+  },
+  callout: {
+    padding: 8,
+    minWidth: 140,
+    maxWidth: 220,
+    gap: 2,
+  },
+  calloutTitle: {
+    fontWeight: "700",
+    fontSize: 13,
+    color: "#0B132B",
+  },
+  calloutModel: {
+    fontSize: 11,
+    color: "#5BC0BE",
+  },
+  calloutTap: {
+    fontSize: 11,
+    color: "#6B7280",
+    marginTop: 2,
   },
   overlayTop: {
     position: "absolute",

@@ -35,7 +35,6 @@ func main() {
 	}
 	defer pool.Close()
 
-	// main() のDI部分だけ差し替え
 	memoryRepo := repository.NewMemoryRepository(pool)
 	createMemoryUC := usecase.NewCreateMemoryUseCase(memoryRepo)
 	listMemoryUC := usecase.NewListMemoryUseCase(memoryRepo)
@@ -43,19 +42,24 @@ func main() {
 
 	photoRepo := repository.NewPhotoRepository(pool)
 	placementRepo := repository.NewLandmarkPlacementRepository(pool)
+	aiClient := aiinfra.NewHTTPClient(aiBaseURL)
 
-	createPhotoUC := usecase.NewCreatePhotoUseCase(photoRepo)
 	createPlacementUC := usecase.NewCreateLandmarkPlacementUseCase(photoRepo, placementRepo)
 	listPlacementsUC := usecase.NewListLandmarkPlacementsByBoundsUseCase(placementRepo)
+
+	// CreatePhotoUseCase: aiClient を DI（非同期ジョブ起動のみ）
+	createPhotoUC := usecase.NewCreatePhotoUseCase(photoRepo, aiClient)
 
 	photoHandler := handler.NewPhotoHandler(createPhotoUC)
 	placementHandler := handler.NewPlacementHandler(createPlacementUC, listPlacementsUC)
 
-	aiClient := aiinfra.NewHTTPClient(aiBaseURL)
 	matchPhotoUC := usecase.NewMatchPhotoUseCase(photoRepo, aiClient)
 	photoMatchHandler := handler.NewPhotoMatchHandler(matchPhotoUC)
 
-	r := apphttp.NewRouter(memoryHandler, photoHandler, placementHandler, photoMatchHandler)
+	get3DStatusUC := usecase.NewGetPhoto3DStatusUseCase(photoRepo, placementRepo, aiClient)
+	photo3DStatusHandler := handler.NewPhoto3DStatusHandler(get3DStatusUC)
+
+	r := apphttp.NewRouter(memoryHandler, photoHandler, placementHandler, photoMatchHandler, photo3DStatusHandler)
 
 	srv := &http.Server{
 		Addr:              ":3000",

@@ -12,7 +12,14 @@ export type Photo = {
   lng: number;
   capturedAt: string;
   imageKey: string;
+  aiJobId: string; // AI 3Dモデル生成ジョブID（空文字の場合は未開始）
   createdAt: string;
+};
+
+export type Photo3DStatus = {
+  status: "not_started" | "pending" | "processing" | "done" | "failed" | "not_found";
+  modelUrl: string;
+  placementId: number;
 };
 
 export type AICandidate = {
@@ -35,6 +42,7 @@ export type LandmarkPlacement = {
   scale: number;
   rotation: [number, number, number];
   matchScore: number | null;
+  modelUrl: string; // 3DモデルのURL（空文字の場合はモデルなし）
   createdAt: string;
 };
 
@@ -44,6 +52,7 @@ export type CreatePhotoCommand = {
   lng: number;
   capturedAt: string;
   imageKey: string;
+  file?: Blob | { uri: string; name: string; type: string }; // 3Dモデル生成用の画像
 };
 
 export type MatchPhotoCommand = {
@@ -62,6 +71,7 @@ export type CreatePlacementCommand = {
   scale: number;
   rotation: [number, number, number];
   matchScore?: number;
+  modelUrl?: string;
 };
 
 export type ListPlacementsByBoundsQuery = {

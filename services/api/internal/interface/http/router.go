@@ -13,6 +13,7 @@ func NewRouter(
 	photoHandler *handler.PhotoHandler,
 	placementHandler *handler.PlacementHandler,
 	photoMatchHandler *handler.PhotoMatchHandler,
+	photo3DStatusHandler *handler.Photo3DStatusHandler,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -29,6 +30,7 @@ func NewRouter(
 
 	r.Route("/v1", func(v1 chi.Router) {
 		v1.Post("/photos", photoHandler.CreatePhoto)
+		v1.Get("/photos/{photoID}/3d_status", photo3DStatusHandler.GetStatus)
 		v1.Post("/placements", placementHandler.CreatePlacement)
 		v1.Get("/placements", placementHandler.ListPlacements)
 		v1.Post("/photos/{photoID}/match", photoMatchHandler.MatchPhoto)
