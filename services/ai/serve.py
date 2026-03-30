@@ -61,7 +61,39 @@ def _run_shap_e_job(job_id: str, image_bytes: bytes, base_url: str) -> None:
     try:
         import torch
         from shap_e.diffusion.sample import sample_latents
-        from shap_e.util.notebooks import decode_latent_mesh
+        from shap_e.rendering.torch_mesh import TorchMesh
+        from shap_e.util.collections import AttrDict
+
+        def decode_latent_mesh(xm, latent):
+            """shap_e.util.notebooks.decode_latent_mesh の ipywidgets 非依存版"""
+            from shap_e.models.nn.camera import DifferentiableCameraBatch, DifferentiableProjectiveCamera
+            import numpy as np
+            origins, xs, ys, zs = [], [], [], []
+            for theta in np.linspace(0, 2 * np.pi, num=20):
+                z = np.array([np.sin(theta), np.cos(theta), -0.5])
+                z /= np.sqrt(np.sum(z**2))
+                origin = -z * 4
+                x = np.array([np.cos(theta), -np.sin(theta), 0.0])
+                y = np.cross(z, x)
+                origins.append(origin); xs.append(x); ys.append(y); zs.append(z)
+            cameras = DifferentiableCameraBatch(
+                shape=(1, len(xs)),
+                flat_camera=DifferentiableProjectiveCamera(
+                    origin=torch.from_numpy(np.stack(origins)).float().to(latent.device),
+                    x=torch.from_numpy(np.stack(xs)).float().to(latent.device),
+                    y=torch.from_numpy(np.stack(ys)).float().to(latent.device),
+                    z=torch.from_numpy(np.stack(zs)).float().to(latent.device),
+                    width=2, height=2, x_fov=0.7, y_fov=0.7,
+                ),
+            )
+            from shap_e.models.transmitter.base import Transmitter
+            with torch.no_grad():
+                decoded = xm.renderer.render_views(
+                    AttrDict(cameras=cameras),
+                    params=(xm.encoder if isinstance(xm, Transmitter) else xm).bottleneck_to_params(latent[None]),
+                    options=AttrDict(rendering_mode="stf", render_with_direction=False),
+                )
+            return decoded.raw_meshes[0]
 
         _load_shap_e()
 
