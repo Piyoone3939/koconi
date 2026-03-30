@@ -3,9 +3,12 @@ package repository
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"koconi/api/internal/domain"
+
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type PgLandmarkPlacementRepository struct {
@@ -24,6 +27,7 @@ func (r *PgLandmarkPlacementRepository) Create(
 	scale float64,
 	rotation []float64,
 	matchScore *float64,
+	modelURL string,
 ) (domain.LandmarkPlacement, error) {
 	rotationJSON, err := json.Marshal(rotation)
 	if err != nil {
@@ -31,17 +35,17 @@ func (r *PgLandmarkPlacementRepository) Create(
 	}
 
 	q := `
-        INSERT INTO landmark_placements
-            (photo_id, asset_id, lat, lng, scale, rotation_json, match_score)
-        VALUES
-            ($1, $2, $3, $4, $5, $6::jsonb, $7)
-        RETURNING id, photo_id, asset_id, lat, lng, scale, rotation_json, match_score, created_at
-    `
+		INSERT INTO landmark_placements
+		    (photo_id, asset_id, lat, lng, scale, rotation_json, match_score, model_url)
+		VALUES
+		    ($1, $2, $3, $4, $5, $6::jsonb, $7, $8)
+		RETURNING id, photo_id, asset_id, lat, lng, scale, rotation_json, match_score, model_url, created_at
+	`
 
 	var lp domain.LandmarkPlacement
 	var rawRotation []byte
-	err = r.pool.QueryRow(ctx, q, photoID, assetID, lat, lng, scale, rotationJSON, matchScore).
-		Scan(&lp.ID, &lp.PhotoID, &lp.AssetID, &lp.Lat, &lp.Lng, &lp.Scale, &rawRotation, &lp.MatchScore, &lp.CreatedAt)
+	err = r.pool.QueryRow(ctx, q, photoID, assetID, lat, lng, scale, rotationJSON, matchScore, modelURL).
+		Scan(&lp.ID, &lp.PhotoID, &lp.AssetID, &lp.Lat, &lp.Lng, &lp.Scale, &rawRotation, &lp.MatchScore, &lp.ModelURL, &lp.CreatedAt)
 	if err != nil {
 		return domain.LandmarkPlacement{}, err
 	}
@@ -58,13 +62,13 @@ func (r *PgLandmarkPlacementRepository) ListByBounds(
 	limit int,
 ) ([]domain.LandmarkPlacement, error) {
 	q := `
-        SELECT id, photo_id, asset_id, lat, lng, scale, rotation_json, match_score, created_at
-        FROM landmark_placements
-        WHERE lat BETWEEN $1 AND $2
-          AND lng BETWEEN $3 AND $4
-        ORDER BY created_at DESC
-        LIMIT $5
-    `
+		SELECT id, photo_id, asset_id, lat, lng, scale, rotation_json, match_score, model_url, created_at
+		FROM landmark_placements
+		WHERE lat BETWEEN $1 AND $2
+		  AND lng BETWEEN $3 AND $4
+		ORDER BY created_at DESC
+		LIMIT $5
+	`
 	rows, err := r.pool.Query(ctx, q, minLat, maxLat, minLng, maxLng, limit)
 	if err != nil {
 		return nil, err
@@ -77,7 +81,7 @@ func (r *PgLandmarkPlacementRepository) ListByBounds(
 		var rawRotation []byte
 		if err := rows.Scan(
 			&lp.ID, &lp.PhotoID, &lp.AssetID, &lp.Lat, &lp.Lng,
-			&lp.Scale, &rawRotation, &lp.MatchScore, &lp.CreatedAt,
+			&lp.Scale, &rawRotation, &lp.MatchScore, &lp.ModelURL, &lp.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -87,4 +91,27 @@ func (r *PgLandmarkPlacementRepository) ListByBounds(
 		out = append(out, lp)
 	}
 	return out, rows.Err()
+}
+
+func (r *PgLandmarkPlacementRepository) FindByPhotoIDWithModel(ctx context.Context, photoID int64) (*domain.LandmarkPlacement, error) {
+	q := `
+		SELECT id, photo_id, asset_id, lat, lng, scale, rotation_json, match_score, model_url, created_at
+		FROM landmark_placements
+		WHERE photo_id = $1 AND model_url != ''
+		LIMIT 1
+	`
+	var lp domain.LandmarkPlacement
+	var rawRotation []byte
+	err := r.pool.QueryRow(ctx, q, photoID).
+		Scan(&lp.ID, &lp.PhotoID, &lp.AssetID, &lp.Lat, &lp.Lng, &lp.Scale, &rawRotation, &lp.MatchScore, &lp.ModelURL, &lp.CreatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if err := json.Unmarshal(rawRotation, &lp.Rotation); err != nil {
+		return nil, err
+	}
+	return &lp, nil
 }

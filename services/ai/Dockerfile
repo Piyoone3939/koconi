@@ -20,11 +20,15 @@ RUN pip install --no-cache-dir \
     faiss-cpu \
     Pillow \
     torch \
-    transformers \
+    torchvision \
+    "transformers==4.44.0" \
     ftfy \
     regex \
     tqdm \
-    git+https://github.com/openai/CLIP.git
+    trimesh \
+    scipy \
+    git+https://github.com/openai/CLIP.git \
+    git+https://github.com/openai/shap-e.git
 
 COPY . .
 

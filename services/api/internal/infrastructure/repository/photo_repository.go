@@ -26,29 +26,29 @@ func (r *PgPhotoRepository) Create(
 	q := `
         INSERT INTO photos (device_id, lat, lng, captured_at, image_key)
         VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, device_id, lat, lng, captured_at, image_key, created_at
+        RETURNING id, device_id, lat, lng, captured_at, image_key, ai_job_id, created_at
     `
 	var p domain.Photo
 	err := r.pool.QueryRow(ctx, q, deviceID, lat, lng, capturedAt, imageKey).
-		Scan(&p.ID, &p.DeviceID, &p.Lat, &p.Lng, &p.CapturedAt, &p.ImageKey, &p.CreatedAt)
+		Scan(&p.ID, &p.DeviceID, &p.Lat, &p.Lng, &p.CapturedAt, &p.ImageKey, &p.AIJobID, &p.CreatedAt)
 	return p, err
 }
 
 func (r *PgPhotoRepository) GetByID(ctx context.Context, id int64) (domain.Photo, error) {
 	q := `
-        SELECT id, device_id, lat, lng, captured_at, image_key, created_at
+        SELECT id, device_id, lat, lng, captured_at, image_key, ai_job_id, created_at
         FROM photos
         WHERE id = $1
     `
 	var p domain.Photo
 	err := r.pool.QueryRow(ctx, q, id).
-		Scan(&p.ID, &p.DeviceID, &p.Lat, &p.Lng, &p.CapturedAt, &p.ImageKey, &p.CreatedAt)
+		Scan(&p.ID, &p.DeviceID, &p.Lat, &p.Lng, &p.CapturedAt, &p.ImageKey, &p.AIJobID, &p.CreatedAt)
 	return p, err
 }
 
 func (r *PgPhotoRepository) ListByDevice(ctx context.Context, deviceID string, limit int) ([]domain.Photo, error) {
 	q := `
-        SELECT id, device_id, lat, lng, captured_at, image_key, created_at
+        SELECT id, device_id, lat, lng, captured_at, image_key, ai_job_id, created_at
         FROM photos
         WHERE device_id = $1
         ORDER BY created_at DESC
@@ -63,10 +63,16 @@ func (r *PgPhotoRepository) ListByDevice(ctx context.Context, deviceID string, l
 	out := make([]domain.Photo, 0, limit)
 	for rows.Next() {
 		var p domain.Photo
-		if err := rows.Scan(&p.ID, &p.DeviceID, &p.Lat, &p.Lng, &p.CapturedAt, &p.ImageKey, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.DeviceID, &p.Lat, &p.Lng, &p.CapturedAt, &p.ImageKey, &p.AIJobID, &p.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
 	}
 	return out, rows.Err()
+}
+
+func (r *PgPhotoRepository) UpdateAIJobID(ctx context.Context, id int64, jobID string) error {
+	q := `UPDATE photos SET ai_job_id = $1 WHERE id = $2`
+	_, err := r.pool.Exec(ctx, q, jobID, id)
+	return err
 }

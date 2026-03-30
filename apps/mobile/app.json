@@ -13,6 +13,12 @@
           "photosPermission": "思い出写真を選択するためにフォトライブラリへのアクセスを使用します。",
           "cameraPermission": "写真を撮影して思い出を記録するためにカメラを使用します。"
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "現在地の思い出として保存するため位置情報を使用します。"
+        }
       ]
     ]
   }

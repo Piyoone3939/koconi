@@ -90,6 +90,28 @@ EXPO_PUBLIC_API_BASE_URL=http://192.168.1.4:3000
 
 If not set, the app currently falls back to `http://localhost:3000`.
 
+### Recommended Local Setup (mobile on real device)
+
+1. Use a LAN reachable URL in `.env`.
+
+```bash
+EXPO_PUBLIC_API_BASE_URL=http://<YOUR_PC_LAN_IP>:3000
+```
+
+2. Restart Expo after changing `.env`.
+
+```bash
+npx expo start
+```
+
+3. App startup now runs API health check automatically.
+
+If the app shows API connection error banner:
+
+1. Start API server/container.
+2. Ensure phone and PC are on same Wi-Fi.
+3. Verify endpoint value in `.env`.
+
 ## Architecture Notes
 
 The app follows a clean architecture layout:

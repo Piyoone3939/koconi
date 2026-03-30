@@ -61,6 +61,8 @@ services:
       - "8000:8000"
     volumes:
       - ./services/ai:/app
+    environment:
+      - AI_BASE_URL=http://192.168.1.4:8000
     restart: unless-stopped
 
 volumes:

@@ -28,6 +28,7 @@ type createPlacementRequest struct {
 	Scale      float64   `json:"scale"`
 	Rotation   []float64 `json:"rotation"`
 	MatchScore *float64  `json:"match_score"`
+	ModelURL   string    `json:"model_url"`
 }
 
 func (h *PlacementHandler) CreatePlacement(w http.ResponseWriter, r *http.Request) {
@@ -46,6 +47,7 @@ func (h *PlacementHandler) CreatePlacement(w http.ResponseWriter, r *http.Reques
 		req.Scale,
 		req.Rotation,
 		req.MatchScore,
+		req.ModelURL,
 	)
 	if err != nil {
 		writeBadRequest(w, err.Error())

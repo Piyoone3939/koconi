@@ -6,6 +6,7 @@ import type {
   ListPlacementsByBoundsQuery,
   MatchPhotoCommand,
   Photo,
+  Photo3DStatus,
 } from "../models/koconi";
 
 export interface KoconiGateway {
@@ -13,4 +14,5 @@ export interface KoconiGateway {
   matchPhoto(command: MatchPhotoCommand): Promise<AIMatchResult>;
   createPlacement(command: CreatePlacementCommand): Promise<LandmarkPlacement>;
   listPlacementsByBounds(query: ListPlacementsByBoundsQuery): Promise<LandmarkPlacement[]>;
+  getPhoto3DStatus(photoId: number): Promise<Photo3DStatus>;
 }
