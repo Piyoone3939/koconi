@@ -31,6 +31,7 @@ Thumbs.db
 **/*.py[cod]
 **/venv/
 **/.venv/
+services/ai/assets_render/generated/
 
 # Go
 *.exe
