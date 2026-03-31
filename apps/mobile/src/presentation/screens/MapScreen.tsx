@@ -66,6 +66,7 @@ export function MapScreen({
         cameraRef.current?.setCamera({
           centerCoordinate: [centerLng, centerLat],
           zoomLevel: 15,
+          pitch: 50,
           animationDuration: 800,
         });
       }
@@ -121,6 +122,7 @@ export function MapScreen({
           ref={cameraRef}
           zoomLevel={14}
           centerCoordinate={DEFAULT_CENTER}
+          pitch={50}
         />
 
         {/* 3Dモデル定義 */}
@@ -205,7 +207,7 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: "#5BC0BE",
+    backgroundColor: "#E86F00",
     borderWidth: 2,
     borderColor: "#fff",
   },
@@ -237,7 +239,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.9)",
+    backgroundColor: "rgba(253, 251, 229, 0.92)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -246,22 +248,29 @@ const styles = StyleSheet.create({
     left: 12,
     right: 12,
     bottom: 12,
-    backgroundColor: "rgba(11, 19, 43, 0.82)",
-    borderRadius: 10,
+    backgroundColor: "rgba(253, 251, 229, 0.92)",
+    borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: "#E8DFC8",
   },
   reloadButton: {
-    backgroundColor: "rgba(11, 19, 43, 0.72)",
+    backgroundColor: "#E86F00",
     borderRadius: 10,
     paddingVertical: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   reloadButtonText: {
     color: "#FFFFFF",
     fontWeight: "700",
     fontSize: 13,
   },
-  errorText: { color: "#FFD1D9", fontSize: 13 },
-  emptyText: { color: "#E2E8F0", fontSize: 13 },
+  errorText: { color: "#C0392B", fontSize: 13 },
+  emptyText: { color: "#6B5E4A", fontSize: 13 },
 });

@@ -53,6 +53,16 @@ def _load_shap_e():
         _shap_e_loaded = True
 
 
+def _remove_background(image_bytes: bytes) -> Image.Image:
+    """背景除去して白背景RGB画像を返す"""
+    from rembg import remove as rembg_remove
+    img_rgba = Image.open(io.BytesIO(image_bytes)).convert("RGBA")
+    img_no_bg = rembg_remove(img_rgba)
+    background = Image.new("RGBA", img_no_bg.size, (255, 255, 255, 255))
+    background.paste(img_no_bg, mask=img_no_bg.split()[3])
+    return background.convert("RGB")
+
+
 def _run_shap_e_job(job_id: str, image_bytes: bytes, base_url: str) -> None:
     """バックグラウンドでShap-E推論を実行し、GLBファイルを保存する"""
     with _jobs_lock:
@@ -98,7 +108,7 @@ def _run_shap_e_job(job_id: str, image_bytes: bytes, base_url: str) -> None:
         _load_shap_e()
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        img = _remove_background(image_bytes)
 
         latents = sample_latents(
             batch_size=1,
