@@ -14,13 +14,18 @@ import (
 )
 
 type HTTPClient struct {
-	baseURL string
-	client  *http.Client
+	baseURL    string // /match 用
+	jobs3dURL  string // /jobs 用（Colab等の外部GPU）
+	client     *http.Client
 }
 
-func NewHTTPClient(baseURL string) *HTTPClient {
+func NewHTTPClient(baseURL, jobs3dURL string) *HTTPClient {
+	if jobs3dURL == "" {
+		jobs3dURL = baseURL
+	}
 	return &HTTPClient{
-		baseURL: baseURL,
+		baseURL:   baseURL,
+		jobs3dURL: jobs3dURL,
 		client: &http.Client{
 			Timeout: 10 * time.Second,
 		},
@@ -92,7 +97,7 @@ func (c *HTTPClient) StartGenerate3DModel(ctx context.Context, image []byte, tas
 		return "", err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/jobs", &body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.jobs3dURL+"/jobs", &body)
 	if err != nil {
 		return "", err
 	}
@@ -122,7 +127,7 @@ func (c *HTTPClient) StartGenerate3DModel(ctx context.Context, image []byte, tas
 
 // GetGenerate3DModelStatus: GET /jobs/{jobID} でジョブステータスを取得
 func (c *HTTPClient) GetGenerate3DModelStatus(ctx context.Context, jobID string) (domain.AI3DJobStatus, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/jobs/"+jobID, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.jobs3dURL+"/jobs/"+jobID, nil)
 	if err != nil {
 		return domain.AI3DJobStatus{}, err
 	}

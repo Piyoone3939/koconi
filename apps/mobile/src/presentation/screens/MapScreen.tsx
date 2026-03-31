@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import MapView, { Callout, Marker } from "react-native-maps";
+
+import MapboxGL from "@rnmapbox/maps";
 import { listPlacements } from "../../application/usecases/photo-placement-flow";
 import type { KoconiGateway } from "../../domain/ports/koconi-gateway";
 
-const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000";
+MapboxGL.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
 
 type PlacementItem = {
   id: number;
@@ -16,6 +17,9 @@ type PlacementItem = {
   modelUrl: string;
 };
 
+const DEFAULT_CENTER: [number, number] = [139.7454, 35.6586];
+const STYLE_URL = "mapbox://styles/mapbox/standard";
+
 export function MapScreen({
   gateway,
   refreshSignal,
@@ -25,7 +29,7 @@ export function MapScreen({
   refreshSignal?: number;
   onMarkerPhotoPress?: (photoId: number) => void;
 }) {
-  const mapRef = useRef<MapView | null>(null);
+  const cameraRef = useRef<MapboxGL.Camera>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<PlacementItem[]>([]);
@@ -43,34 +47,31 @@ export function MapScreen({
         limit: 30,
       });
 
-      const nextItems: PlacementItem[] = placements.map((placement) => ({
-        id: placement.id,
-        photoId: placement.photoId,
-        assetId: placement.assetId,
-        score: placement.matchScore,
-        lat: placement.lat,
-        lng: placement.lng,
-        modelUrl: placement.modelUrl,
+      const nextItems: PlacementItem[] = placements.map((p) => ({
+        id: p.id,
+        photoId: p.photoId,
+        assetId: p.assetId,
+        score: p.matchScore,
+        lat: p.lat,
+        lng: p.lng,
+        modelUrl: p.modelUrl,
       }));
       setItems(nextItems);
 
       if (nextItems.length > 0) {
-        mapRef.current?.fitToCoordinates(
-          nextItems.map((item) => ({ latitude: item.lat, longitude: item.lng })),
-          {
-            edgePadding: { top: 60, right: 60, bottom: 60, left: 60 },
-            animated: true,
-          },
-        );
+        const lats = nextItems.map((i) => i.lat);
+        const lngs = nextItems.map((i) => i.lng);
+        const centerLat = (Math.min(...lats) + Math.max(...lats)) / 2;
+        const centerLng = (Math.min(...lngs) + Math.max(...lngs)) / 2;
+        cameraRef.current?.setCamera({
+          centerCoordinate: [centerLng, centerLat],
+          zoomLevel: 15,
+          animationDuration: 800,
+        });
       }
     } catch (e) {
-      setItems([]);
-      const rawMessage = e instanceof Error ? e.message : "Unknown error";
-      if (rawMessage.includes("Network request failed")) {
-        setError(`Network request failed. API endpoint: ${apiBaseUrl}`);
-      } else {
-        setError(rawMessage);
-      }
+      const msg = e instanceof Error ? e.message : "Unknown error";
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -81,59 +82,97 @@ export function MapScreen({
   }, [handleLoad]);
 
   useEffect(() => {
-    if (refreshSignal === undefined) {
-      return;
-    }
-    void handleLoad();
+    if (refreshSignal !== undefined) void handleLoad();
   }, [refreshSignal, handleLoad]);
+
+  const itemsWithout3D = items.filter((i) => !i.modelUrl);
+  const itemsWith3D = items.filter((i) => i.modelUrl);
+
+  const models3D = useMemo(() => {
+    const m: Record<string, string> = {};
+    itemsWith3D.forEach((item) => {
+      m[`koconi-${item.id}`] = item.modelUrl;
+    });
+    return m;
+  }, [itemsWith3D]);
+
+  const featureCollection = useMemo(
+    () => ({
+      type: "FeatureCollection" as const,
+      features: itemsWith3D.map((item) => ({
+        type: "Feature" as const,
+        geometry: { type: "Point" as const, coordinates: [item.lng, item.lat] },
+        properties: { "model-id": `koconi-${item.id}` },
+      })),
+    }),
+    [itemsWith3D],
+  );
 
   return (
     <View style={styles.container}>
-      <MapView
-        ref={mapRef}
-        style={styles.mapCanvas}
-        initialRegion={{
-          latitude: items[0]?.lat ?? 35.681236,
-          longitude: items[0]?.lng ?? 139.767125,
-          latitudeDelta: 0.08,
-          longitudeDelta: 0.08,
-        }}
+      <MapboxGL.MapView
+        style={styles.map}
+        styleURL={STYLE_URL}
+        logoEnabled={false}
+        attributionEnabled={false}
+        rotateEnabled={false}
       >
-        {items.map((item) => (
-          <Marker
+        <MapboxGL.Camera
+          ref={cameraRef}
+          zoomLevel={14}
+          centerCoordinate={DEFAULT_CENTER}
+        />
+
+        {/* 3Dモデル定義 */}
+        {itemsWith3D.length > 0 ? <MapboxGL.Models models={models3D} /> : null}
+
+        {/* 3Dモデルレイヤー */}
+        {itemsWith3D.length > 0 ? (
+          <MapboxGL.ShapeSource id="koconi-models" shape={featureCollection}>
+            <MapboxGL.ModelLayer
+              id="koconi-model-layer"
+              slot="top"
+              style={{
+                modelId: ["get", "model-id"],
+                modelScale: ["interpolate", ["exponential", 2], ["zoom"], 8, [64000, 64000, 64000], 12, [4000, 4000, 4000], 15, [500, 500, 500], 18, [60, 60, 60]],
+                modelRotation: [90, 0, 0],
+                modelOpacity: 1,
+                modelType: "common-3d",
+              }}
+            />
+          </MapboxGL.ShapeSource>
+        ) : null}
+
+        {/* 通常ピン（3Dモデルなし） */}
+        {itemsWithout3D.map((item) => (
+          <MapboxGL.MarkerView
             key={`pin-${item.id}`}
-            coordinate={{ latitude: item.lat, longitude: item.lng }}
-            onPress={() => onMarkerPhotoPress?.(item.photoId)}
+            coordinate={[item.lng, item.lat]}
+            allowOverlap
           >
-            {/* 3Dモデルありのピンはカスタムビューで区別 */}
-            <View style={[styles.pinContainer, item.modelUrl ? styles.pinWith3D : styles.pinWithout3D]}>
-              <Text style={styles.pinEmoji}>{item.modelUrl ? "🔷" : "📍"}</Text>
-              {item.modelUrl ? (
-                <View style={styles.pin3DBadge}>
-                  <Text style={styles.pin3DBadgeText}>3D</Text>
-                </View>
-              ) : null}
-            </View>
-            <Callout onPress={() => onMarkerPhotoPress?.(item.photoId)}>
-              <View style={styles.callout}>
-                <Text style={styles.calloutTitle}>
-                  {item.modelUrl ? "🔷 3Dピン" : "📍 写真ピン"} #{item.id}
-                </Text>
-                {item.modelUrl ? (
-                  <Text style={styles.calloutModel} numberOfLines={1}>
-                    モデル: {item.modelUrl.split("/").pop()}
-                  </Text>
-                ) : null}
-                <Text style={styles.calloutTap}>タップで写真を表示</Text>
-              </View>
-            </Callout>
-          </Marker>
+            <Pressable onPress={() => onMarkerPhotoPress?.(item.photoId)}>
+              <View style={styles.pin} />
+            </Pressable>
+          </MapboxGL.MarkerView>
         ))}
-      </MapView>
+
+        {/* 3Dモデルのピン（ズームアウト時も可視） */}
+        {itemsWith3D.map((item) => (
+          <MapboxGL.MarkerView
+            key={`tap-${item.id}`}
+            coordinate={[item.lng, item.lat]}
+            allowOverlap
+          >
+            <Pressable onPress={() => onMarkerPhotoPress?.(item.photoId)}>
+              <View style={styles.pin3d} />
+            </Pressable>
+          </MapboxGL.MarkerView>
+        ))}
+      </MapboxGL.MapView>
 
       <View style={styles.overlayTop}>
-        <Pressable style={styles.refreshButton} onPress={handleLoad} disabled={loading}>
-          <Text style={styles.refreshButtonText}>{loading ? "..." : "Reload"}</Text>
+        <Pressable style={styles.reloadButton} onPress={handleLoad} disabled={loading}>
+          <Text style={styles.reloadButtonText}>{loading ? "..." : "Reload"}</Text>
         </Pressable>
       </View>
 
@@ -145,72 +184,44 @@ export function MapScreen({
 
       {error ? (
         <View style={styles.overlayBottom}>
-          <Text style={styles.error}>{error}</Text>
+          <Text style={styles.errorText}>{error}</Text>
         </View>
       ) : null}
+
       {!loading && items.length === 0 && !error ? (
         <View style={styles.overlayBottom}>
-          <Text style={styles.empty}>No placements yet</Text>
+          <Text style={styles.emptyText}>No placements yet</Text>
         </View>
       ) : null}
+
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
-  },
-  mapCanvas: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  pinContainer: {
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  pinWith3D: {
-    // 3Dモデルありピン
-  },
-  pinWithout3D: {
-    // 通常ピン
-  },
-  pinEmoji: {
-    fontSize: 32,
-  },
-  pin3DBadge: {
-    position: "absolute",
-    bottom: -2,
-    right: -6,
-    backgroundColor: "#5BC0BE",
+  container: { flex: 1 },
+  map: { flex: 1 },
+  pin: {
+    width: 12,
+    height: 12,
     borderRadius: 6,
-    paddingHorizontal: 3,
-    paddingVertical: 1,
+    backgroundColor: "#5BC0BE",
+    borderWidth: 2,
+    borderColor: "#fff",
   },
-  pin3DBadgeText: {
-    color: "#0B132B",
-    fontSize: 8,
-    fontWeight: "700",
+  tapArea: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "transparent",
   },
-  callout: {
-    padding: 8,
-    minWidth: 140,
-    maxWidth: 220,
-    gap: 2,
-  },
-  calloutTitle: {
-    fontWeight: "700",
-    fontSize: 13,
-    color: "#0B132B",
-  },
-  calloutModel: {
-    fontSize: 11,
-    color: "#5BC0BE",
-  },
-  calloutTap: {
-    fontSize: 11,
-    color: "#6B7280",
-    marginTop: 2,
+  pin3d: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: "#FFD700",
+    borderWidth: 2,
+    borderColor: "#fff",
   },
   overlayTop: {
     position: "absolute",
@@ -240,22 +251,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  refreshButton: {
-    backgroundColor: "rgba(11, 19, 43, 0.82)",
+  reloadButton: {
+    backgroundColor: "rgba(11, 19, 43, 0.72)",
     borderRadius: 10,
     paddingVertical: 8,
     paddingHorizontal: 12,
   },
-  refreshButtonText: {
+  reloadButtonText: {
     color: "#FFFFFF",
     fontWeight: "700",
-  },
-  error: {
-    color: "#FFD1D9",
     fontSize: 13,
   },
-  empty: {
-    color: "#E2E8F0",
-    fontSize: 13,
-  },
+  errorText: { color: "#FFD1D9", fontSize: 13 },
+  emptyText: { color: "#E2E8F0", fontSize: 13 },
 });

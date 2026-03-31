@@ -63,9 +63,14 @@ func (r *PgLandmarkPlacementRepository) ListByBounds(
 ) ([]domain.LandmarkPlacement, error) {
 	q := `
 		SELECT id, photo_id, asset_id, lat, lng, scale, rotation_json, match_score, model_url, created_at
-		FROM landmark_placements
-		WHERE lat BETWEEN $1 AND $2
-		  AND lng BETWEEN $3 AND $4
+		FROM (
+		    SELECT DISTINCT ON (photo_id)
+		        id, photo_id, asset_id, lat, lng, scale, rotation_json, match_score, model_url, created_at
+		    FROM landmark_placements
+		    WHERE lat BETWEEN $1 AND $2
+		      AND lng BETWEEN $3 AND $4
+		    ORDER BY photo_id, model_url DESC, created_at DESC
+		) sub
 		ORDER BY created_at DESC
 		LIMIT $5
 	`

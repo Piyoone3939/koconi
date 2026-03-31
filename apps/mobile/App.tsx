@@ -1,13 +1,15 @@
 import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { API_BASE_URL, checkApiReachability, createKoconiGateway } from "./src/infrastructure/http";
 import { AlbumScreen } from "./src/presentation/screens/AlbumScreen";
 import { MapScreen } from "./src/presentation/screens/MapScreen";
 import { PhotosScreen, type AlbumPhotoInput } from "./src/presentation/screens/PhotosScreen";
 import { ProfileScreen } from "./src/presentation/screens/ProfileScreen";
+
+type GenerationStatus = "idle" | "pending" | "processing" | "done" | "failed";
 
 type TabKey = "map" | "photos" | "album" | "profile";
 
@@ -33,6 +35,40 @@ export default function App() {
   const [mapRefreshSignal, setMapRefreshSignal] = useState(0);
   const [albumHighlightedPhotoId, setAlbumHighlightedPhotoId] = useState<number | null>(null);
   const [albumLoaded, setAlbumLoaded] = useState(false);
+  const [generationStatus, setGenerationStatus] = useState<GenerationStatus>("idle");
+  const [generationPhotoId, setGenerationPhotoId] = useState<number | null>(null);
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const startPolling = (photoId: number) => {
+    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    setGenerationStatus("pending");
+    setGenerationPhotoId(photoId);
+    pollTimerRef.current = setInterval(async () => {
+      try {
+        const s = await gateway.getPhoto3DStatus(photoId);
+        if (s.status === "done") {
+          clearInterval(pollTimerRef.current!);
+          pollTimerRef.current = null;
+          setGenerationStatus("done");
+          setMapRefreshSignal((prev) => prev + 1);
+        } else if (s.status === "failed" || s.status === "not_found") {
+          clearInterval(pollTimerRef.current!);
+          pollTimerRef.current = null;
+          setGenerationStatus("failed");
+        } else {
+          setGenerationStatus(s.status as GenerationStatus);
+        }
+      } catch {
+        // ポーリングエラーは無視
+      }
+    }, 3000);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     void handleCheckApiReachability();
@@ -132,7 +168,7 @@ export default function App() {
   return (
     <SafeAreaView
       style={{ flex: 1, backgroundColor: tab === "map" ? "#FFFFFF" : "#0B132B" }}
-      edges={["top"]}
+      edges={["top", "bottom"]}
     >
       <StatusBar style="light" />
       {tab !== "map" ? (
@@ -174,7 +210,7 @@ export default function App() {
           <PhotosScreen
             gateway={gateway}
             onPhotoPosted={handlePhotoPosted}
-            onMapRefresh={() => setMapRefreshSignal((prev) => prev + 1)}
+            onStartPolling={startPolling}
           />
         ) : null}
         {tab === "album" ? (
@@ -186,6 +222,36 @@ export default function App() {
         ) : null}
         {tab === "profile" ? <ProfileScreen /> : null}
       </View>
+
+      {generationStatus !== "idle" ? (
+        <View
+          style={[
+            styles.generationBanner,
+            generationStatus === "done" ? styles.generationBannerDone : null,
+            generationStatus === "failed" ? styles.generationBannerFailed : null,
+          ]}
+        >
+          {generationStatus === "pending" || generationStatus === "processing" ? (
+            <View style={styles.generationBannerRow}>
+              <ActivityIndicator size="small" color="#5BC0BE" />
+              <Text style={styles.generationBannerText}>
+                {generationStatus === "pending" ? "3Dモデル生成待機中..." : "3Dモデル生成中..."}
+              </Text>
+            </View>
+          ) : generationStatus === "done" ? (
+            <Pressable onPress={() => setGenerationStatus("idle")}>
+              <Text style={styles.generationBannerDoneText}>3Dモデル生成完了！マップに反映されました ✕</Text>
+            </Pressable>
+          ) : (
+            <Pressable onPress={() => setGenerationStatus("idle")}>
+              <Text style={styles.generationBannerFailedText}>3Dモデル生成に失敗しました ✕</Text>
+            </Pressable>
+          )}
+          {generationPhotoId && (generationStatus === "pending" || generationStatus === "processing") ? (
+            <Text style={styles.generationBannerPhotoId}>photo #{generationPhotoId}</Text>
+          ) : null}
+        </View>
+      ) : null}
 
       <View style={styles.tabBar}>
         <TabButton label="Map" active={tab === "map"} onPress={() => setTab("map")} />
@@ -297,5 +363,41 @@ const styles = StyleSheet.create({
   },
   tabButtonTextActive: {
     color: "#0B132B",
+  },
+  generationBanner: {
+    backgroundColor: "#1C2541",
+    borderTopWidth: 1,
+    borderTopColor: "#2B4A6F",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 2,
+  },
+  generationBannerDone: {
+    borderTopColor: "#5BC0BE",
+  },
+  generationBannerFailed: {
+    borderTopColor: "#FF8FA3",
+  },
+  generationBannerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  generationBannerText: {
+    color: "#AFC5CD",
+    fontSize: 13,
+  },
+  generationBannerDoneText: {
+    color: "#5BC0BE",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  generationBannerFailedText: {
+    color: "#FF8FA3",
+    fontSize: 13,
+  },
+  generationBannerPhotoId: {
+    color: "#6B7280",
+    fontSize: 11,
   },
 });
