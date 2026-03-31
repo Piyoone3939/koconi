@@ -26,6 +26,7 @@ func main() {
 	if aiBaseURL == "" {
 		aiBaseURL = "http://ai:8000"
 	}
+	ai3dURL := os.Getenv("AI_3D_BASE_URL") // 未設定時は aiBaseURL にフォールバック
 
 	ctx := context.Background()
 	pool, err := pgxpool.New(ctx, dsn)
@@ -42,7 +43,7 @@ func main() {
 
 	photoRepo := repository.NewPhotoRepository(pool)
 	placementRepo := repository.NewLandmarkPlacementRepository(pool)
-	aiClient := aiinfra.NewHTTPClient(aiBaseURL)
+	aiClient := aiinfra.NewHTTPClient(aiBaseURL, ai3dURL)
 
 	createPlacementUC := usecase.NewCreateLandmarkPlacementUseCase(photoRepo, placementRepo)
 	listPlacementsUC := usecase.NewListLandmarkPlacementsByBoundsUseCase(placementRepo)

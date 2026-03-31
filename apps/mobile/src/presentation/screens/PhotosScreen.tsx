@@ -24,8 +24,6 @@ type ResultState = {
   placementId?: number;
 };
 
-type GenerationStatus = "idle" | "pending" | "processing" | "done" | "failed";
-
 export type AlbumPhotoInput = {
   uri: string;
   photoId: number;
@@ -35,20 +33,17 @@ export type AlbumPhotoInput = {
 export function PhotosScreen({
   gateway,
   onPhotoPosted,
-  onMapRefresh,
+  onStartPolling,
 }: {
   gateway: KoconiGateway;
   onPhotoPosted?: (item: AlbumPhotoInput) => void;
-  onMapRefresh?: () => void;
+  onStartPolling?: (photoId: number) => void;
 }) {
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [pickedImageUri, setPickedImageUri] = useState<string | null>(null);
   const [resolvedCoords, setResolvedCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
-  const [generationStatus, setGenerationStatus] = useState<GenerationStatus>("idle");
-  const [generationPhotoId, setGenerationPhotoId] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,35 +52,8 @@ export function PhotosScreen({
   useEffect(() => {
     return () => {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
     };
   }, []);
-
-  const startPolling = (photoId: number) => {
-    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-    setGenerationStatus("pending");
-    setGenerationPhotoId(photoId);
-
-    pollTimerRef.current = setInterval(async () => {
-      try {
-        const s = await gateway.getPhoto3DStatus(photoId);
-        if (s.status === "done") {
-          clearInterval(pollTimerRef.current!);
-          pollTimerRef.current = null;
-          setGenerationStatus("done");
-          onMapRefresh?.();
-        } else if (s.status === "failed" || s.status === "not_found") {
-          clearInterval(pollTimerRef.current!);
-          pollTimerRef.current = null;
-          setGenerationStatus("failed");
-        } else {
-          setGenerationStatus(s.status as GenerationStatus);
-        }
-      } catch {
-        // ポーリングエラーは無視（次のインターバルで再試行）
-      }
-    }, 3000);
-  };
 
   const handleSubmit = async () => {
     if (loading) return;
@@ -93,11 +61,6 @@ export function PhotosScreen({
     setLoading(true);
     setError(null);
     setResult({});
-    setGenerationStatus("idle");
-    if (pollTimerRef.current) {
-      clearInterval(pollTimerRef.current);
-      pollTimerRef.current = null;
-    }
 
     try {
       if (!pickedImageUri) {
@@ -155,7 +118,7 @@ export function PhotosScreen({
 
       // AIジョブが開始されていたらポーリング開始
       if (photo.aiJobId) {
-        startPolling(photo.id);
+        onStartPolling?.(photo.id);
       }
     } catch (e) {
       const rawMessage = e instanceof Error ? e.message : "Unknown error";
@@ -246,33 +209,6 @@ export function PhotosScreen({
         </Text>
       ) : null}
       {successToast ? <Text style={styles.successToast}>{successToast}</Text> : null}
-
-      {/* 3Dモデル生成ステータス */}
-      {generationStatus !== "idle" ? (
-        <View
-          style={[
-            styles.generationCard,
-            generationStatus === "done" ? styles.generationCardDone : null,
-            generationStatus === "failed" ? styles.generationCardFailed : null,
-          ]}
-        >
-          {generationStatus === "pending" || generationStatus === "processing" ? (
-            <View style={styles.generationRow}>
-              <ActivityIndicator size="small" color="#5BC0BE" />
-              <Text style={styles.generationText}>
-                {generationStatus === "pending" ? "3Dモデル生成待機中..." : "3Dモデル生成中..."}
-              </Text>
-            </View>
-          ) : generationStatus === "done" ? (
-            <Text style={styles.generationDoneText}>3Dモデル生成完了！マップに反映されました</Text>
-          ) : (
-            <Text style={styles.generationFailedText}>3Dモデル生成に失敗しました</Text>
-          )}
-          {generationPhotoId ? (
-            <Text style={styles.generationPhotoId}>photo #{generationPhotoId}</Text>
-          ) : null}
-        </View>
-      ) : null}
 
       {(result.photoId || result.topAssetId || result.placementId) && !error ? (
         <View style={styles.resultCard}>
