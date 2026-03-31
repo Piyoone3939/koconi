@@ -27,6 +27,7 @@ RUN pip install --no-cache-dir \
     tqdm \
     trimesh \
     scipy \
+    rembg \
     git+https://github.com/openai/CLIP.git \
     git+https://github.com/openai/shap-e.git
 

@@ -64,7 +64,7 @@ export function PhotosScreen({
 
     try {
       if (!pickedImageUri) {
-        throw new Error("pick or capture an image first");
+        throw new Error("先に写真を選択してください");
       }
 
       const coords = await resolveCoordinates();
@@ -112,18 +112,17 @@ export function PhotosScreen({
         createdAt: now.toISOString(),
       });
 
-      setSuccessToast("投稿に成功しました");
+      setSuccessToast("投稿しました");
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
       toastTimerRef.current = setTimeout(() => setSuccessToast(null), 2500);
 
-      // AIジョブが開始されていたらポーリング開始
       if (photo.aiJobId) {
         onStartPolling?.(photo.id);
       }
     } catch (e) {
       const rawMessage = e instanceof Error ? e.message : "Unknown error";
       if (rawMessage.includes("Network request failed")) {
-        setError(`Network request failed. API endpoint: ${apiBaseUrl}`);
+        setError(`ネットワークエラー。APIエンドポイント: ${apiBaseUrl}`);
       } else {
         setError(rawMessage);
       }
@@ -135,7 +134,7 @@ export function PhotosScreen({
   const handlePickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) {
-      setError("media library permission is required");
+      setError("フォトライブラリへのアクセスを許可してください");
       return;
     }
 
@@ -154,7 +153,7 @@ export function PhotosScreen({
   const handleTakePhoto = async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      setError("camera permission is required");
+      setError("カメラへのアクセスを許可してください");
       return;
     }
 
@@ -172,50 +171,74 @@ export function PhotosScreen({
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>Photos</Text>
-      <Text style={styles.subTitle}>Pick or capture a photo and post it</Text>
+    <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
+      <Text style={styles.title}>写真を投稿</Text>
+      <Text style={styles.subTitle}>写真を選んで地図上に3Dモデルを立てよう</Text>
 
       <View style={styles.actionRow}>
         <Pressable style={styles.secondaryButton} onPress={handlePickImage}>
-          <Text style={styles.secondaryButtonText}>Pick Image From Library</Text>
+          <Text style={styles.secondaryButtonText}>ライブラリから選択</Text>
         </Pressable>
         <Pressable style={styles.secondaryButton} onPress={handleTakePhoto}>
-          <Text style={styles.secondaryButtonText}>Take Photo</Text>
+          <Text style={styles.secondaryButtonText}>カメラで撮影</Text>
         </Pressable>
       </View>
+
       {pickedImageUri ? (
         <View style={styles.previewCard}>
-          <Image source={{ uri: pickedImageUri }} style={styles.previewImage} />
-          <Text style={styles.previewLabel}>selected image preview</Text>
+          <Image source={{ uri: pickedImageUri }} style={styles.previewImage} resizeMode="cover" />
         </View>
-      ) : null}
+      ) : (
+        <View style={styles.placeholderCard}>
+          <Text style={styles.placeholderText}>写真が選択されていません</Text>
+        </View>
+      )}
 
-      <Pressable style={styles.primaryButton} onPress={handleSubmit} disabled={loading}>
-        <Text style={styles.primaryButtonText}>{loading ? "Submitting..." : "Post Photo"}</Text>
+      <Pressable
+        style={[styles.primaryButton, loading ? styles.primaryButtonDisabled : null]}
+        onPress={handleSubmit}
+        disabled={loading}
+      >
+        {loading ? (
+          <View style={styles.primaryButtonRow}>
+            <ActivityIndicator size="small" color="#FFFFFF" />
+            <Text style={styles.primaryButtonText}>投稿中...</Text>
+          </View>
+        ) : (
+          <Text style={styles.primaryButtonText}>投稿する</Text>
+        )}
       </Pressable>
 
       {error ? (
-        <Pressable style={styles.retryButton} onPress={handleSubmit} disabled={loading}>
-          <Text style={styles.retryButtonText}>Retry</Text>
-        </Pressable>
+        <View style={styles.errorCard}>
+          <Text style={styles.errorText}>{error}</Text>
+          <Pressable style={styles.retryButton} onPress={handleSubmit} disabled={loading}>
+            <Text style={styles.retryButtonText}>再試行</Text>
+          </Pressable>
+        </View>
       ) : null}
 
-      {loading ? <ActivityIndicator size="small" color="#5BC0BE" /> : null}
-      {error ? <Text style={styles.error}>Error: {error}</Text> : null}
       {resolvedCoords ? (
         <Text style={styles.coordText}>
-          location: {resolvedCoords.lat.toFixed(5)}, {resolvedCoords.lng.toFixed(5)}
+          位置: {resolvedCoords.lat.toFixed(5)}, {resolvedCoords.lng.toFixed(5)}
         </Text>
       ) : null}
-      {successToast ? <Text style={styles.successToast}>{successToast}</Text> : null}
+
+      {successToast ? (
+        <View style={styles.successCard}>
+          <Text style={styles.successText}>{successToast}</Text>
+        </View>
+      ) : null}
 
       {(result.photoId || result.topAssetId || result.placementId) && !error ? (
         <View style={styles.resultCard}>
-          <Text style={styles.resultTitle}>Posted</Text>
-          <Text style={styles.resultText}>photoId: {result.photoId ?? "-"}</Text>
-          <Text style={styles.resultText}>topAssetId: {result.topAssetId ?? "-"}</Text>
-          <Text style={styles.resultText}>placementId: {result.placementId ?? "not created"}</Text>
+          <View style={styles.resultDot} />
+          <View style={styles.resultBody}>
+            <Text style={styles.resultTitle}>投稿完了</Text>
+            <Text style={styles.resultText}>photo #{result.photoId ?? "-"}</Text>
+            <Text style={styles.resultText}>asset: {result.topAssetId ?? "-"}</Text>
+            <Text style={styles.resultText}>placement: {result.placementId ?? "pending"}</Text>
+          </View>
         </View>
       ) : null}
     </ScrollView>
@@ -234,7 +257,7 @@ function buildUploadFile(uri: string, capturedAt: Date): { uri: string; name: st
 async function resolveCoordinates(): Promise<{ lat: number; lng: number }> {
   const permission = await Location.requestForegroundPermissionsAsync();
   if (!permission.granted) {
-    throw new Error("location permission is required");
+    throw new Error("位置情報へのアクセスを許可してください");
   }
 
   const position = await Location.getCurrentPositionAsync({
@@ -248,134 +271,152 @@ async function resolveCoordinates(): Promise<{ lat: number; lng: number }> {
 }
 
 const styles = StyleSheet.create({
+  scroll: {
+    backgroundColor: "#FDFBE5",
+  },
   container: {
-    padding: 18,
-    gap: 12,
+    padding: 20,
+    gap: 14,
   },
   title: {
     fontSize: 26,
-    fontWeight: "700",
-    color: "#FFFFFF",
+    fontWeight: "800",
+    color: "#1A1209",
+    letterSpacing: 0.3,
   },
   subTitle: {
-    color: "#9CB4BD",
+    color: "#9A8B78",
     fontSize: 13,
     marginBottom: 2,
   },
-  primaryButton: {
-    backgroundColor: "#5BC0BE",
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: "center",
-    marginTop: 4,
-  },
-  primaryButtonText: {
-    color: "#0B132B",
-    fontWeight: "700",
-  },
-  retryButton: {
-    backgroundColor: "#2B3659",
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  retryButtonText: {
-    color: "#D7E3FF",
-    fontWeight: "700",
-  },
-  secondaryButton: {
-    backgroundColor: "#273C75",
-    borderRadius: 10,
-    paddingVertical: 10,
-    alignItems: "center",
-    flex: 1,
-  },
   actionRow: {
     flexDirection: "row",
-    gap: 8,
+    gap: 10,
+  },
+  secondaryButton: {
+    flex: 1,
+    backgroundColor: "#7697A0",
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
   },
   secondaryButtonText: {
-    color: "#D7E3FF",
+    color: "#FFFFFF",
     fontWeight: "700",
+    fontSize: 13,
   },
   previewCard: {
-    backgroundColor: "#1C2541",
-    borderRadius: 10,
+    borderRadius: 14,
+    overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#2B3659",
-    padding: 10,
-    gap: 6,
+    borderColor: "#E8DFC8",
   },
   previewImage: {
     width: "100%",
-    height: 180,
-    borderRadius: 8,
+    height: 220,
   },
-  previewLabel: {
-    color: "#AFC5CD",
-    fontSize: 12,
-  },
-  error: {
-    color: "#FF8FA3",
-    fontSize: 13,
-  },
-  coordText: {
-    color: "#AFC5CD",
-    fontSize: 12,
-  },
-  successToast: {
-    color: "#B9FBC0",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  generationCard: {
-    backgroundColor: "#1C2541",
-    borderRadius: 10,
+  placeholderCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#2B4A6F",
-    padding: 12,
-    gap: 4,
+    borderColor: "#E8DFC8",
+    height: 120,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  generationCardDone: {
-    borderColor: "#5BC0BE",
+  placeholderText: {
+    color: "#C8BAA8",
+    fontSize: 13,
   },
-  generationCardFailed: {
-    borderColor: "#FF8FA3",
+  primaryButton: {
+    backgroundColor: "#E86F00",
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: "center",
   },
-  generationRow: {
+  primaryButtonDisabled: {
+    backgroundColor: "#F0A870",
+  },
+  primaryButtonRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  generationText: {
-    color: "#AFC5CD",
+  primaryButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 15,
+  },
+  errorCard: {
+    backgroundColor: "#FFF0EE",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#EFCFCA",
+    padding: 12,
+    gap: 8,
+  },
+  errorText: {
+    color: "#C0392B",
     fontSize: 13,
   },
-  generationDoneText: {
-    color: "#5BC0BE",
+  retryButton: {
+    alignSelf: "flex-start",
+    backgroundColor: "#E86F00",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  retryButtonText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 13,
+  },
+  coordText: {
+    color: "#9A8B78",
+    fontSize: 12,
+  },
+  successCard: {
+    backgroundColor: "#EFF7EE",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#C3DFC0",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  successText: {
+    color: "#3D7A3D",
     fontSize: 13,
     fontWeight: "700",
-  },
-  generationFailedText: {
-    color: "#FF8FA3",
-    fontSize: 13,
-  },
-  generationPhotoId: {
-    color: "#6B7280",
-    fontSize: 11,
   },
   resultCard: {
-    backgroundColor: "#1C2541",
-    borderRadius: 10,
-    padding: 12,
-    gap: 4,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E8DFC8",
+    padding: 14,
+    flexDirection: "row",
+    gap: 12,
+    alignItems: "flex-start",
+  },
+  resultDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#E86F00",
+    marginTop: 4,
+  },
+  resultBody: {
+    flex: 1,
+    gap: 3,
   },
   resultTitle: {
-    color: "#5BC0BE",
+    color: "#1A1209",
     fontWeight: "700",
+    fontSize: 14,
+    marginBottom: 2,
   },
   resultText: {
-    color: "#CDE6E5",
-    fontSize: 13,
+    color: "#6B5E4A",
+    fontSize: 12,
   },
 });
