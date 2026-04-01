@@ -1,100 +1,267 @@
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
-const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000";
+const DISPLAY_NAME = "Koconi User";
+const USER_TAG = "@koconi_user";
+const AVATAR_INITIAL = "K";
 
 export function ProfileScreen() {
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
-      <Text style={styles.title}>設定</Text>
-      <Text style={styles.subTitle}>環境情報</Text>
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ヘッダー行 */}
+        <View style={styles.headerRow}>
+          <Text style={styles.headerTitle}>プロフィール</Text>
+          <Pressable style={({ pressed }) => [styles.settingsBtn, pressed && { opacity: 0.6 }]}>
+            <Text style={styles.settingsIcon}>⚙</Text>
+          </Pressable>
+        </View>
 
-      <View style={styles.card}>
-        <Text style={styles.cardLabel}>API エンドポイント</Text>
-        <Text style={styles.cardValue}>{apiBaseUrl}</Text>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.cardLabel}>ロードマップ</Text>
-        <View style={styles.roadmapList}>
-          <View style={styles.roadmapItem}>
-            <View style={styles.roadmapDot} />
-            <Text style={styles.cardText}>写真投稿・カメラ連携</Text>
+        {/* アバター + 名前 */}
+        <View style={styles.profileRow}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarInitial}>{AVATAR_INITIAL}</Text>
           </View>
-          <View style={styles.roadmapItem}>
-            <View style={styles.roadmapDot} />
-            <Text style={styles.cardText}>マップ表示・3Dピン</Text>
-          </View>
-          <View style={styles.roadmapItem}>
-            <View style={[styles.roadmapDot, styles.roadmapDotPending]} />
-            <Text style={[styles.cardText, styles.cardTextPending]}>認証・ユーザープロフィール</Text>
+          <View style={styles.profileInfo}>
+            <Text style={styles.displayName}>{DISPLAY_NAME}</Text>
+            <Pressable style={styles.tagRow}>
+              <Text style={styles.userTag}>{USER_TAG}</Text>
+              <Text style={styles.copyIcon}>⧉</Text>
+            </Pressable>
           </View>
         </View>
-      </View>
-    </ScrollView>
+
+        {/* ソーシャル追加ボタン */}
+        <Pressable
+          style={({ pressed }) => [styles.socialBtn, pressed && { opacity: 0.75 }]}
+        >
+          <Text style={styles.socialBtnIcon}>🔗</Text>
+          <Text style={styles.socialBtnText}>ソーシャルを追加</Text>
+        </Pressable>
+
+        {/* アクションボタン行 */}
+        <View style={styles.actionRow}>
+          <Pressable
+            style={({ pressed }) => [styles.shareBtn, pressed && { opacity: 0.85 }]}
+          >
+            <Text style={styles.shareBtnIcon}>↑</Text>
+            <Text style={styles.shareBtnText}>シェア</Text>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [styles.editBtn, pressed && { opacity: 0.85 }]}
+          >
+            <Text style={styles.editBtnIcon}>✎</Text>
+            <Text style={styles.editBtnText}>編集</Text>
+          </Pressable>
+        </View>
+
+        {/* 区切り */}
+        <View style={styles.divider} />
+
+        {/* 統計 */}
+        <View style={styles.statsRow}>
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>0</Text>
+            <Text style={styles.statLabel}>記録</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>0</Text>
+            <Text style={styles.statLabel}>フレンド</Text>
+          </View>
+          <View style={styles.statDivider} />
+          <View style={styles.statItem}>
+            <Text style={styles.statValue}>0</Text>
+            <Text style={styles.statLabel}>3Dモデル</Text>
+          </View>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  scroll: {
+  container: {
+    flex: 1,
     backgroundColor: "#FDFBE5",
   },
-  container: {
+  scroll: { flex: 1 },
+  content: {
     padding: 20,
-    gap: 14,
+    gap: 16,
+    paddingBottom: 40,
   },
-  title: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#1A1209",
-    letterSpacing: 0.3,
+
+  // ヘッダー行
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  subTitle: {
-    color: "#9A8B78",
-    fontSize: 13,
-    marginBottom: 2,
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: "900",
+    color: "#2A1F12",
+    letterSpacing: -0.5,
   },
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
+  settingsBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F0EBD8",
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#E8DFC8",
-    padding: 16,
-    gap: 8,
+    borderColor: "#DDD3BC",
   },
-  cardLabel: {
-    color: "#7697A0",
-    fontWeight: "700",
-    fontSize: 12,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  cardValue: {
-    color: "#1A1209",
-    fontSize: 13,
-    fontFamily: "monospace",
-  },
-  cardText: {
+  settingsIcon: {
+    fontSize: 18,
     color: "#6B5E4A",
-    fontSize: 14,
   },
-  cardTextPending: {
-    color: "#9A8B78",
-  },
-  roadmapList: {
-    gap: 10,
-  },
-  roadmapItem: {
+
+  // アバター + 名前
+  profileRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 16,
+    paddingVertical: 8,
+  },
+  avatar: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: "#7697A0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarInitial: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    letterSpacing: -0.5,
+  },
+  profileInfo: {
+    flex: 1,
+    gap: 6,
+  },
+  displayName: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#2A1F12",
+  },
+  tagRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+  },
+  userTag: {
+    fontSize: 14,
+    color: "#8A7B68",
+    fontWeight: "500",
+  },
+  copyIcon: {
+    fontSize: 14,
+    color: "#E86F00",
+  },
+
+  // ソーシャルボタン
+  socialBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: "#7697A0",
+    borderRadius: 50,
+    paddingVertical: 14,
+  },
+  socialBtnIcon: { fontSize: 16 },
+  socialBtnText: {
+    color: "#7697A0",
+    fontWeight: "700",
+    fontSize: 14,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+
+  // アクションボタン行
+  actionRow: {
+    flexDirection: "row",
     gap: 10,
   },
-  roadmapDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  shareBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
     backgroundColor: "#E86F00",
+    borderRadius: 50,
+    paddingVertical: 14,
   },
-  roadmapDotPending: {
-    backgroundColor: "#D8CFC0",
+  shareBtnIcon: { color: "#FFFFFF", fontSize: 16 },
+  shareBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "700",
+    fontSize: 14,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  editBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#EAE3D0",
+    borderRadius: 50,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: "#DDD3BC",
+  },
+  editBtnIcon: { color: "#4A3E2E", fontSize: 15 },
+  editBtnText: {
+    color: "#4A3E2E",
+    fontWeight: "700",
+    fontSize: 14,
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+
+  // 区切り
+  divider: {
+    height: 1,
+    backgroundColor: "#DDD3BC",
+  },
+
+  // 統計
+  statsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  statItem: {
+    flex: 1,
+    alignItems: "center",
+    gap: 4,
+  },
+  statValue: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: "#2A1F12",
+  },
+  statLabel: {
+    fontSize: 12,
+    color: "#8A7B68",
+    fontWeight: "500",
+  },
+  statDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: "#DDD3BC",
   },
 });
