@@ -4,21 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Easing, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { API_BASE_URL, checkApiReachability, createKoconiGateway } from "./src/infrastructure/http";
-import { AlbumScreen } from "./src/presentation/screens/AlbumScreen";
+import { FriendsScreen } from "./src/presentation/screens/FriendsScreen";
 import { MapScreen } from "./src/presentation/screens/MapScreen";
-import { PhotosScreen, type AlbumPhotoInput } from "./src/presentation/screens/PhotosScreen";
 import { ProfileScreen } from "./src/presentation/screens/ProfileScreen";
+import { RecordScreen, type AlbumItem, type AlbumPhotoInput } from "./src/presentation/screens/RecordScreen";
 
 type GenerationStatus = "idle" | "pending" | "processing" | "done" | "failed";
-
-type TabKey = "map" | "photos" | "album" | "profile";
-
-type AlbumItem = {
-  id: string;
-  uri: string;
-  photoId: number;
-  createdAt: string;
-};
+type TabKey = "map" | "record" | "friends" | "profile";
 
 const ALBUM_STORAGE_KEY = "koconi:album";
 
@@ -42,6 +34,7 @@ export default function App() {
   const splashScale = useRef(new Animated.Value(1)).current;
   const splashOpacity = useRef(new Animated.Value(1)).current;
 
+  // スプラッシュ
   useEffect(() => {
     const timer = setTimeout(() => {
       Animated.parallel([
@@ -61,6 +54,7 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [splashOpacity, splashScale]);
 
+  // ポーリング
   const startPolling = (photoId: number) => {
     if (pollTimerRef.current) clearInterval(pollTimerRef.current);
     setGenerationStatus("pending");
@@ -92,6 +86,7 @@ export default function App() {
     };
   }, []);
 
+  // API接続確認
   useEffect(() => {
     void handleCheckApiReachability();
   }, []);
@@ -103,40 +98,27 @@ export default function App() {
       setApiConnection({ status: "ok" });
       return;
     }
-    setApiConnection({
-      status: "error",
-      message: result.message ?? "unknown error",
-    });
+    setApiConnection({ status: "error", message: result.message ?? "unknown error" });
   };
 
+  // アルバム読み込み
   useEffect(() => {
     const loadAlbum = async () => {
       try {
         const raw = await AsyncStorage.getItem(ALBUM_STORAGE_KEY);
-        if (!raw) {
-          setAlbumLoaded(true);
-          return;
-        }
-
+        if (!raw) { setAlbumLoaded(true); return; }
         const parsed = JSON.parse(raw) as unknown;
-        if (!Array.isArray(parsed)) {
-          setAlbumLoaded(true);
-          return;
-        }
-
+        if (!Array.isArray(parsed)) { setAlbumLoaded(true); return; }
         const safeItems = parsed.filter((item): item is AlbumItem => {
-          if (!item || typeof item !== "object") {
-            return false;
-          }
-          const candidate = item as Record<string, unknown>;
+          if (!item || typeof item !== "object") return false;
+          const c = item as Record<string, unknown>;
           return (
-            typeof candidate.id === "string" &&
-            typeof candidate.uri === "string" &&
-            typeof candidate.photoId === "number" &&
-            typeof candidate.createdAt === "string"
+            typeof c.id === "string" &&
+            typeof c.uri === "string" &&
+            typeof c.photoId === "number" &&
+            typeof c.createdAt === "string"
           );
         });
-
         setAlbumItems(safeItems);
       } catch {
         setAlbumItems([]);
@@ -144,32 +126,22 @@ export default function App() {
         setAlbumLoaded(true);
       }
     };
-
     void loadAlbum();
   }, []);
 
   useEffect(() => {
-    if (!albumLoaded) {
-      return;
-    }
-
+    if (!albumLoaded) return;
     void AsyncStorage.setItem(ALBUM_STORAGE_KEY, JSON.stringify(albumItems));
   }, [albumItems, albumLoaded]);
 
+  // タブ切り替え時にハイライトリセット
   useEffect(() => {
-    if (tab !== "album") {
-      setAlbumHighlightedPhotoId(null);
-    }
+    if (tab !== "record") setAlbumHighlightedPhotoId(null);
   }, [tab]);
 
   const handlePhotoPosted = (item: AlbumPhotoInput) => {
     setAlbumItems((prev) => [
-      {
-        id: `${item.photoId}-${item.createdAt}`,
-        uri: item.uri,
-        photoId: item.photoId,
-        createdAt: item.createdAt,
-      },
+      { id: `${item.photoId}-${item.createdAt}`, uri: item.uri, photoId: item.photoId, createdAt: item.createdAt },
       ...prev,
     ]);
     setMapRefreshSignal((prev) => prev + 1);
@@ -181,31 +153,31 @@ export default function App() {
 
   const handleMarkerPhotoPress = (photoId: number) => {
     setAlbumHighlightedPhotoId(photoId);
-    setTab("album");
+    setTab("record");
   };
 
+  const TAB_ITEMS: { key: TabKey; label: string; icon: string }[] = [
+    { key: "map",     label: "地図",       icon: "🗺" },
+    { key: "record",  label: "記録",       icon: "📷" },
+    { key: "friends", label: "フレンド",   icon: "👥" },
+    { key: "profile", label: "プロフィール", icon: "👤" },
+  ];
+
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#FDFBE5" }} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
       <StatusBar style="dark" />
 
-      {tab !== "map" ? (
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Koconi</Text>
-        </View>
-      ) : null}
-
+      {/* API接続バナー */}
       {apiConnection.status !== "ok" ? (
         <View style={styles.apiBanner}>
           <Text style={styles.apiBannerTitle}>
-            {apiConnection.status === "checking" ? "API接続を確認中..." : "API接続エラー"}
+            {apiConnection.status === "checking" ? "接続を確認中..." : "接続エラー"}
           </Text>
           {apiConnection.status === "error" ? (
             <>
               <Text style={styles.apiBannerText}>{apiConnection.message}</Text>
-              <Text style={styles.apiBannerText}>endpoint: {API_BASE_URL}</Text>
-              <Text style={styles.apiBannerGuide}>1) APIサーバーを起動</Text>
-              <Text style={styles.apiBannerGuide}>2) スマホとPCを同じWi-Fiに接続</Text>
-              <Text style={styles.apiBannerGuide}>3) .env の EXPO_PUBLIC_API_BASE_URL を確認</Text>
+              <Text style={styles.apiBannerText}>{API_BASE_URL}</Text>
+              <Text style={styles.apiBannerGuide}>① APIサーバーを起動 → ② 同じWi-Fiに接続 → ③ .env を確認</Text>
               <Pressable style={styles.apiBannerRetry} onPress={handleCheckApiReachability}>
                 <Text style={styles.apiBannerRetryText}>再接続</Text>
               </Pressable>
@@ -214,6 +186,7 @@ export default function App() {
         </View>
       ) : null}
 
+      {/* コンテンツ */}
       <View style={styles.content}>
         {tab === "map" ? (
           <MapScreen
@@ -222,60 +195,73 @@ export default function App() {
             onMarkerPhotoPress={handleMarkerPhotoPress}
           />
         ) : null}
-        {tab === "photos" ? (
-          <PhotosScreen
+        {tab === "record" ? (
+          <RecordScreen
             gateway={gateway}
+            albumItems={albumItems}
+            highlightedPhotoId={albumHighlightedPhotoId}
             onPhotoPosted={handlePhotoPosted}
             onStartPolling={startPolling}
-          />
-        ) : null}
-        {tab === "album" ? (
-          <AlbumScreen
-            items={albumItems}
-            highlightedPhotoId={albumHighlightedPhotoId}
             onDeleteItem={handleDeleteAlbumItem}
           />
         ) : null}
+        {tab === "friends" ? <FriendsScreen /> : null}
         {tab === "profile" ? <ProfileScreen /> : null}
       </View>
 
+      {/* 3D生成トースト */}
       {generationStatus !== "idle" ? (
         <View
           style={[
-            styles.generationBanner,
-            generationStatus === "done" ? styles.generationBannerDone : null,
-            generationStatus === "failed" ? styles.generationBannerFailed : null,
+            styles.toast,
+            generationStatus === "done" && styles.toastDone,
+            generationStatus === "failed" && styles.toastFailed,
           ]}
         >
           {generationStatus === "pending" || generationStatus === "processing" ? (
-            <View style={styles.generationBannerRow}>
+            <View style={styles.toastRow}>
               <ActivityIndicator size="small" color="#E86F00" />
-              <Text style={styles.generationBannerText}>
-                {generationStatus === "pending" ? "3Dモデル生成待機中..." : "3Dモデル生成中..."}
+              <Text style={styles.toastText}>
+                {generationStatus === "pending" ? "生成待機中" : "3Dモデル生成中"}
               </Text>
+              {generationPhotoId ? <Text style={styles.toastSub}>#{generationPhotoId}</Text> : null}
             </View>
           ) : generationStatus === "done" ? (
-            <Pressable onPress={() => setGenerationStatus("idle")}>
-              <Text style={styles.generationBannerDoneText}>3Dモデル生成完了！マップに反映されました  ✕</Text>
+            <Pressable onPress={() => setGenerationStatus("idle")} style={styles.toastRow}>
+              <Text style={styles.toastDoneText}>マップに追加されました  ✕</Text>
             </Pressable>
           ) : (
-            <Pressable onPress={() => setGenerationStatus("idle")}>
-              <Text style={styles.generationBannerFailedText}>3Dモデル生成に失敗しました  ✕</Text>
+            <Pressable onPress={() => setGenerationStatus("idle")} style={styles.toastRow}>
+              <Text style={styles.toastFailedText}>生成に失敗しました  ✕</Text>
             </Pressable>
           )}
-          {generationPhotoId && (generationStatus === "pending" || generationStatus === "processing") ? (
-            <Text style={styles.generationBannerPhotoId}>photo #{generationPhotoId}</Text>
-          ) : null}
         </View>
       ) : null}
 
-      <View style={styles.tabBar}>
-        <TabButton label="地図" active={tab === "map"} onPress={() => setTab("map")} />
-        <TabButton label="写真" active={tab === "photos"} onPress={() => setTab("photos")} />
-        <TabButton label="アルバム" active={tab === "album"} onPress={() => setTab("album")} />
-        <TabButton label="設定" active={tab === "profile"} onPress={() => setTab("profile")} />
+      {/* タブバー */}
+      <View style={styles.tabBarOuter}>
+        <View style={styles.tabBar}>
+          {TAB_ITEMS.map(({ key, label, icon }) => {
+            const active = tab === key;
+            return (
+              <Pressable
+                key={key}
+                style={({ pressed }) => [
+                  styles.tabItem,
+                  active && styles.tabItemActive,
+                  pressed && !active && { opacity: 0.6 },
+                ]}
+                onPress={() => setTab(key)}
+              >
+                <Text style={[styles.tabIcon, active && styles.tabIconActive]}>{icon}</Text>
+                <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
 
+      {/* スプラッシュ */}
       {splashVisible ? (
         <Animated.View
           style={[
@@ -285,162 +271,125 @@ export default function App() {
           ]}
           pointerEvents="none"
         >
-          <Image
-            source={require("./assets/splash.png")}
-            style={styles.splashLogo}
-            resizeMode="contain"
-          />
+          <Image source={require("./assets/splash.png")} style={styles.splashLogo} resizeMode="contain" />
         </Animated.View>
       ) : null}
     </SafeAreaView>
   );
 }
 
-function TabButton({
-  label,
-  active,
-  onPress,
-}: {
-  label: string;
-  active: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable style={[styles.tabButton, active ? styles.tabButtonActive : null]} onPress={onPress}>
-      <Text style={[styles.tabButtonText, active ? styles.tabButtonTextActive : null]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 6,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E8DFC8",
+  safeArea: {
+    flex: 1,
     backgroundColor: "#FDFBE5",
   },
-  headerTitle: {
-    color: "#E86F00",
-    fontSize: 22,
-    fontWeight: "800",
-    letterSpacing: 1,
-  },
+
+  // API バナー
   apiBanner: {
     marginHorizontal: 12,
-    marginTop: 10,
-    backgroundColor: "#FFF0EE",
+    marginTop: 8,
+    backgroundColor: "#FFF4F2",
     borderColor: "#EFCFCA",
     borderWidth: 1,
     borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     gap: 4,
   },
-  apiBannerTitle: {
-    color: "#C0392B",
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  apiBannerText: {
-    color: "#8B2A20",
-    fontSize: 12,
-  },
-  apiBannerGuide: {
-    color: "#6B4040",
-    fontSize: 12,
-  },
+  apiBannerTitle: { color: "#B03020", fontSize: 13, fontWeight: "700" },
+  apiBannerText: { color: "#8B2A20", fontSize: 12 },
+  apiBannerGuide: { color: "#7A4040", fontSize: 12, lineHeight: 18 },
   apiBannerRetry: {
-    marginTop: 6,
-    alignSelf: "flex-start",
-    backgroundColor: "#E86F00",
-    borderRadius: 8,
+    marginTop: 6, alignSelf: "flex-start",
+    backgroundColor: "#E86F00", borderRadius: 8,
+    paddingHorizontal: 14, paddingVertical: 8,
+  },
+  apiBannerRetryText: { color: "#FFFFFF", fontWeight: "700", fontSize: 12 },
+
+  content: { flex: 1 },
+
+  // トースト
+  toast: {
+    marginHorizontal: 32,
+    marginBottom: 6,
+    backgroundColor: "#FDFBE5",
+    borderRadius: 50,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    alignSelf: "center",
+    shadowColor: "#2A1F12",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: "#DDD3BC",
+  },
+  toastDone: { borderColor: "#B8D8B4", backgroundColor: "#F0F8EE" },
+  toastFailed: { borderColor: "#EFCFCA", backgroundColor: "#FFF4F2" },
+  toastRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  toastText: { color: "#4A3E2E", fontSize: 13, fontWeight: "600" },
+  toastSub: { color: "#9A8B78", fontSize: 12 },
+  toastDoneText: { color: "#2E6B2E", fontSize: 13, fontWeight: "700" },
+  toastFailedText: { color: "#B03020", fontSize: 13, fontWeight: "700" },
+
+  // タブバー（Walkable風）
+  tabBarOuter: {
     paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
-  apiBannerRetryText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  content: {
-    flex: 1,
+    paddingBottom: 4,
+    paddingTop: 6,
+    backgroundColor: "#FDFBE5",
+    borderTopWidth: 1,
+    borderTopColor: "#DDD3BC",
   },
   tabBar: {
     flexDirection: "row",
-    borderTopWidth: 1,
-    borderTopColor: "#E8DFC8",
-    backgroundColor: "#FDFBE5",
-    padding: 8,
-    gap: 6,
+    backgroundColor: "#EAE3D0",
+    borderRadius: 20,
+    paddingHorizontal: 4,
+    paddingVertical: 4,
+    height: 58,
   },
-  tabButton: {
+  tabItem: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 10,
-    paddingVertical: 10,
-    backgroundColor: "transparent",
-  },
-  tabButtonActive: {
-    backgroundColor: "#E86F00",
-  },
-  tabButtonText: {
-    color: "#7697A0",
-    fontWeight: "600",
-    fontSize: 13,
-  },
-  tabButtonTextActive: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-  },
-  generationBanner: {
-    backgroundColor: "#FDFBE5",
-    borderTopWidth: 1,
-    borderTopColor: "#E8DFC8",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    borderRadius: 16,
     gap: 2,
+    paddingVertical: 4,
   },
-  generationBannerDone: {
-    borderTopColor: "#5D8A4E",
-    backgroundColor: "#EFF7EE",
+  tabItemActive: {
+    backgroundColor: "#FDFBE5",
+    shadowColor: "#2A1F12",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  generationBannerFailed: {
-    borderTopColor: "#C0392B",
-    backgroundColor: "#FFF0EE",
+  tabIcon: {
+    fontSize: 18,
+    opacity: 0.45,
   },
-  generationBannerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
+  tabIconActive: {
+    opacity: 1,
   },
-  generationBannerText: {
-    color: "#6B5E4A",
-    fontSize: 13,
+  tabLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#9A8B78",
+    letterSpacing: 0.1,
   },
-  generationBannerDoneText: {
-    color: "#3D7A3D",
-    fontSize: 13,
+  tabLabelActive: {
+    color: "#E86F00",
     fontWeight: "700",
   },
-  generationBannerFailedText: {
-    color: "#C0392B",
-    fontSize: 13,
-  },
-  generationBannerPhotoId: {
-    color: "#9A8B78",
-    fontSize: 11,
-  },
+
+  // スプラッシュ
   splash: {
     backgroundColor: "#FDFBE5",
     alignItems: "center",
     justifyContent: "center",
     zIndex: 999,
   },
-  splashLogo: {
-    width: 260,
-    height: 260,
-  },
+  splashLogo: { width: 260, height: 260 },
 });

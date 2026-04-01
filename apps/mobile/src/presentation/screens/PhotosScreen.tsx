@@ -112,9 +112,13 @@ export function PhotosScreen({
         createdAt: now.toISOString(),
       });
 
-      setSuccessToast("投稿しました");
+      setSuccessToast("地図に追加しました");
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-      toastTimerRef.current = setTimeout(() => setSuccessToast(null), 2500);
+      toastTimerRef.current = setTimeout(() => {
+        setSuccessToast(null);
+        setPickedImageUri(null);
+        setResult({});
+      }, 2500);
 
       if (photo.aiJobId) {
         onStartPolling?.(photo.id);
@@ -122,7 +126,7 @@ export function PhotosScreen({
     } catch (e) {
       const rawMessage = e instanceof Error ? e.message : "Unknown error";
       if (rawMessage.includes("Network request failed")) {
-        setError(`ネットワークエラー。APIエンドポイント: ${apiBaseUrl}`);
+        setError(`ネットワークエラー\n${apiBaseUrl}`);
       } else {
         setError(rawMessage);
       }
@@ -138,16 +142,18 @@ export function PhotosScreen({
       return;
     }
 
-    const result = await ImagePicker.launchImageLibraryAsync({
+    const picked = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
       quality: 0.8,
       allowsEditing: false,
     });
 
-    if (result.canceled || !result.assets[0]) return;
+    if (picked.canceled || !picked.assets[0]) return;
 
     setError(null);
-    setPickedImageUri(result.assets[0].uri);
+    setResult({});
+    setSuccessToast(null);
+    setPickedImageUri(picked.assets[0].uri);
   };
 
   const handleTakePhoto = async () => {
@@ -157,91 +163,135 @@ export function PhotosScreen({
       return;
     }
 
-    const result = await ImagePicker.launchCameraAsync({
+    const picked = await ImagePicker.launchCameraAsync({
       mediaTypes: ["images"],
       quality: 0.8,
       allowsEditing: false,
       cameraType: ImagePicker.CameraType.back,
     });
 
-    if (result.canceled || !result.assets[0]) return;
+    if (picked.canceled || !picked.assets[0]) return;
 
     setError(null);
-    setPickedImageUri(result.assets[0].uri);
+    setResult({});
+    setSuccessToast(null);
+    setPickedImageUri(picked.assets[0].uri);
   };
 
+  const isPosted = !!successToast || !!result.photoId;
+
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
-      <Text style={styles.title}>写真を投稿</Text>
-      <Text style={styles.subTitle}>写真を選んで地図上に3Dモデルを立てよう</Text>
-
-      <View style={styles.actionRow}>
-        <Pressable style={styles.secondaryButton} onPress={handlePickImage}>
-          <Text style={styles.secondaryButtonText}>ライブラリから選択</Text>
-        </Pressable>
-        <Pressable style={styles.secondaryButton} onPress={handleTakePhoto}>
-          <Text style={styles.secondaryButtonText}>カメラで撮影</Text>
-        </Pressable>
-      </View>
-
-      {pickedImageUri ? (
-        <View style={styles.previewCard}>
-          <Image source={{ uri: pickedImageUri }} style={styles.previewImage} resizeMode="cover" />
-        </View>
-      ) : (
-        <View style={styles.placeholderCard}>
-          <Text style={styles.placeholderText}>写真が選択されていません</Text>
-        </View>
-      )}
-
-      <Pressable
-        style={[styles.primaryButton, loading ? styles.primaryButtonDisabled : null]}
-        onPress={handleSubmit}
-        disabled={loading}
+    <View style={styles.wrapper}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.container}
+        keyboardShouldPersistTaps="handled"
       >
-        {loading ? (
-          <View style={styles.primaryButtonRow}>
-            <ActivityIndicator size="small" color="#FFFFFF" />
-            <Text style={styles.primaryButtonText}>投稿中...</Text>
+        {/* ヘッダー */}
+        <View style={styles.header}>
+          <Text style={styles.title}>記録する</Text>
+          <Text style={styles.subtitle}>写真を撮って、場所に刻もう</Text>
+        </View>
+
+        {/* 写真エリア */}
+        {pickedImageUri ? (
+          <View style={styles.previewWrap}>
+            <Image
+              source={{ uri: pickedImageUri }}
+              style={styles.previewImage}
+              resizeMode="cover"
+            />
+            {/* 変更ボタン */}
+            <View style={styles.previewOverlay}>
+              <Pressable style={styles.changeBtn} onPress={handlePickImage}>
+                <Text style={styles.changeBtnText}>ライブラリ</Text>
+              </Pressable>
+              <Pressable style={styles.changeBtn} onPress={handleTakePhoto}>
+                <Text style={styles.changeBtnText}>カメラ</Text>
+              </Pressable>
+            </View>
+            {/* 成功オーバーレイ */}
+            {isPosted ? (
+              <View style={styles.successOverlay}>
+                <Text style={styles.successOverlayText}>地図に追加しました</Text>
+              </View>
+            ) : null}
           </View>
         ) : (
-          <Text style={styles.primaryButtonText}>投稿する</Text>
-        )}
-      </Pressable>
+          /* 写真未選択: 大きなタップエリア */
+          <View style={styles.emptyPhotoArea}>
+            {/* カメラアイコン (Viewで構成) */}
+            <View style={styles.cameraIconOuter}>
+              <View style={styles.cameraIconInner} />
+              <View style={styles.cameraIconLens} />
+              <View style={styles.cameraIconFlash} />
+            </View>
+            <Text style={styles.emptyTitle}>写真を選ぶ</Text>
+            <Text style={styles.emptyHint}>下のボタンから選択してください</Text>
 
-      {error ? (
-        <View style={styles.errorCard}>
-          <Text style={styles.errorText}>{error}</Text>
-          <Pressable style={styles.retryButton} onPress={handleSubmit} disabled={loading}>
-            <Text style={styles.retryButtonText}>再試行</Text>
-          </Pressable>
-        </View>
-      ) : null}
-
-      {resolvedCoords ? (
-        <Text style={styles.coordText}>
-          位置: {resolvedCoords.lat.toFixed(5)}, {resolvedCoords.lng.toFixed(5)}
-        </Text>
-      ) : null}
-
-      {successToast ? (
-        <View style={styles.successCard}>
-          <Text style={styles.successText}>{successToast}</Text>
-        </View>
-      ) : null}
-
-      {(result.photoId || result.topAssetId || result.placementId) && !error ? (
-        <View style={styles.resultCard}>
-          <View style={styles.resultDot} />
-          <View style={styles.resultBody}>
-            <Text style={styles.resultTitle}>投稿完了</Text>
-            <Text style={styles.resultText}>photo #{result.photoId ?? "-"}</Text>
-            <Text style={styles.resultText}>asset: {result.topAssetId ?? "-"}</Text>
-            <Text style={styles.resultText}>placement: {result.placementId ?? "pending"}</Text>
+            <View style={styles.emptyActions}>
+              <Pressable
+                style={({ pressed }) => [styles.emptyActionBtn, pressed && { opacity: 0.7 }]}
+                onPress={handlePickImage}
+              >
+                <Text style={styles.emptyActionBtnText}>ライブラリから選択</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.emptyActionBtnPrimary, pressed && { opacity: 0.7 }]}
+                onPress={handleTakePhoto}
+              >
+                <Text style={styles.emptyActionBtnPrimaryText}>カメラで撮影</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
-      ) : null}
-    </ScrollView>
+        )}
+
+        {/* 位置情報 */}
+        {resolvedCoords ? (
+          <Text style={styles.coordText}>
+            {resolvedCoords.lat.toFixed(5)}, {resolvedCoords.lng.toFixed(5)}
+          </Text>
+        ) : null}
+
+        {/* エラー */}
+        {error ? (
+          <View style={styles.errorCard}>
+            <Text style={styles.errorText}>{error}</Text>
+            <Pressable style={styles.retryBtn} onPress={handleSubmit} disabled={loading}>
+              <Text style={styles.retryBtnText}>再試行</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {/* 下部ボタン分のスペース */}
+        <View style={{ height: 16 }} />
+      </ScrollView>
+
+      {/* 固定投稿ボタン */}
+      <View style={styles.bottomBar}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.submitBtn,
+            loading && styles.submitBtnDisabled,
+            !pickedImageUri && styles.submitBtnInactive,
+            pressed && pickedImageUri && !loading && { opacity: 0.85 },
+          ]}
+          onPress={handleSubmit}
+          disabled={loading || !pickedImageUri}
+        >
+          {loading ? (
+            <View style={styles.submitBtnRow}>
+              <ActivityIndicator size="small" color="#FFFFFF" />
+              <Text style={styles.submitBtnText}>投稿中...</Text>
+            </View>
+          ) : (
+            <Text style={styles.submitBtnText}>
+              {!pickedImageUri ? "写真を選んでください" : "この写真を投稿する"}
+            </Text>
+          )}
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -271,152 +321,228 @@ async function resolveCoordinates(): Promise<{ lat: number; lng: number }> {
 }
 
 const styles = StyleSheet.create({
-  scroll: {
+  wrapper: {
+    flex: 1,
     backgroundColor: "#FDFBE5",
+  },
+  scroll: {
+    flex: 1,
   },
   container: {
     padding: 20,
-    gap: 14,
+    gap: 16,
+  },
+  // ── ヘッダー ───────────────────────────────────────────
+  header: {
+    gap: 4,
+    paddingBottom: 4,
   },
   title: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#1A1209",
-    letterSpacing: 0.3,
+    fontSize: 32,
+    fontWeight: "900",
+    color: "#2A1F12",
+    letterSpacing: -0.5,
   },
-  subTitle: {
-    color: "#9A8B78",
-    fontSize: 13,
-    marginBottom: 2,
-  },
-  actionRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  secondaryButton: {
-    flex: 1,
-    backgroundColor: "#7697A0",
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
-  },
-  secondaryButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
+  subtitle: {
+    color: "#8A7B68",
     fontSize: 13,
   },
-  previewCard: {
-    borderRadius: 14,
+  // ── 写真プレビュー ─────────────────────────────────────
+  previewWrap: {
+    borderRadius: 16,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#E8DFC8",
+    backgroundColor: "#EAE3D0",
+    position: "relative",
   },
   previewImage: {
     width: "100%",
-    height: 220,
+    height: 340,
   },
-  placeholderCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#E8DFC8",
-    height: 120,
+  previewOverlay: {
+    position: "absolute",
+    bottom: 12,
+    right: 12,
+    flexDirection: "row",
+    gap: 8,
+  },
+  changeBtn: {
+    backgroundColor: "rgba(26, 18, 9, 0.65)",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+  },
+  changeBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  successOverlay: {
+    position: "absolute",
+    inset: 0,
+    backgroundColor: "rgba(42, 31, 18, 0.45)",
     alignItems: "center",
     justifyContent: "center",
   },
-  placeholderText: {
-    color: "#C8BAA8",
-    fontSize: 13,
-  },
-  primaryButton: {
-    backgroundColor: "#E86F00",
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: "center",
-  },
-  primaryButtonDisabled: {
-    backgroundColor: "#F0A870",
-  },
-  primaryButtonRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  primaryButtonText: {
+  successOverlayText: {
     color: "#FFFFFF",
+    fontSize: 18,
     fontWeight: "700",
-    fontSize: 15,
+    letterSpacing: 0.5,
+  },
+  // ── 写真未選択エリア ────────────────────────────────────
+  emptyPhotoArea: {
+    backgroundColor: "#F0EBD8",
+    borderRadius: 16,
+    paddingVertical: 40,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    gap: 12,
+    borderWidth: 1.5,
+    borderColor: "#DDD3BC",
+    borderStyle: "dashed",
+  },
+  // カメラアイコン (Viewで構成)
+  cameraIconOuter: {
+    width: 56,
+    height: 44,
+    borderRadius: 10,
+    borderWidth: 2.5,
+    borderColor: "#8A7B68",
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+    marginBottom: 4,
+  },
+  cameraIconInner: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2.5,
+    borderColor: "#8A7B68",
+  },
+  cameraIconLens: {
+    position: "absolute",
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#8A7B68",
+  },
+  cameraIconFlash: {
+    position: "absolute",
+    top: -8,
+    left: 8,
+    width: 12,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#F0EBD8",
+    borderWidth: 2,
+    borderColor: "#8A7B68",
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#4A3E2E",
+  },
+  emptyHint: {
+    fontSize: 13,
+    color: "#8A7B68",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  emptyActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 8,
+    width: "100%",
+  },
+  emptyActionBtn: {
+    flex: 1,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#DDD3BC",
+  },
+  emptyActionBtnText: {
+    color: "#4A3E2E",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  emptyActionBtnPrimary: {
+    flex: 1,
+    backgroundColor: "#4A6B78",
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: "center",
+  },
+  emptyActionBtnPrimaryText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  // ── 位置情報・エラー ────────────────────────────────────
+  coordText: {
+    color: "#9A8B78",
+    fontSize: 11,
+    fontFamily: "monospace",
+    textAlign: "center",
   },
   errorCard: {
-    backgroundColor: "#FFF0EE",
+    backgroundColor: "#FFF4F2",
     borderRadius: 12,
     borderWidth: 1,
     borderColor: "#EFCFCA",
-    padding: 12,
-    gap: 8,
+    padding: 14,
+    gap: 10,
   },
   errorText: {
-    color: "#C0392B",
+    color: "#B03020",
     fontSize: 13,
+    lineHeight: 20,
   },
-  retryButton: {
+  retryBtn: {
     alignSelf: "flex-start",
-    backgroundColor: "#E86F00",
+    backgroundColor: "#C85A00",
     borderRadius: 8,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  retryButtonText: {
+  retryBtnText: {
     color: "#FFFFFF",
     fontWeight: "700",
     fontSize: 13,
   },
-  coordText: {
-    color: "#9A8B78",
-    fontSize: 12,
+  // ── 固定投稿ボタン ─────────────────────────────────────
+  bottomBar: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+    paddingBottom: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#DDD3BC",
+    backgroundColor: "#FDFBE5",
   },
-  successCard: {
-    backgroundColor: "#EFF7EE",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#C3DFC0",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+  submitBtn: {
+    backgroundColor: "#C85A00",
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: "center",
   },
-  successText: {
-    color: "#3D7A3D",
-    fontSize: 13,
-    fontWeight: "700",
+  submitBtnDisabled: {
+    backgroundColor: "#D8956A",
   },
-  resultCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E8DFC8",
-    padding: 14,
+  submitBtnInactive: {
+    backgroundColor: "#C8BAA8",
+  },
+  submitBtnRow: {
     flexDirection: "row",
-    gap: 12,
-    alignItems: "flex-start",
+    alignItems: "center",
+    gap: 8,
   },
-  resultDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#E86F00",
-    marginTop: 4,
-  },
-  resultBody: {
-    flex: 1,
-    gap: 3,
-  },
-  resultTitle: {
-    color: "#1A1209",
+  submitBtnText: {
+    color: "#FFFFFF",
     fontWeight: "700",
-    fontSize: 14,
-    marginBottom: 2,
-  },
-  resultText: {
-    color: "#6B5E4A",
-    fontSize: 12,
+    fontSize: 15,
+    letterSpacing: 0.3,
   },
 });

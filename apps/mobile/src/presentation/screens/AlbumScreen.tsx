@@ -16,6 +16,11 @@ export type AlbumItem = {
   createdAt: string;
 };
 
+type GroupedItems = {
+  date: string;
+  items: AlbumItem[];
+};
+
 export function AlbumScreen({
   items,
   highlightedPhotoId,
@@ -30,13 +35,24 @@ export function AlbumScreen({
 
   const sortedItems = useMemo(() => {
     const copy = [...items];
-    copy.sort((a, b) => {
-      return sortOrder === "newest"
+    copy.sort((a, b) =>
+      sortOrder === "newest"
         ? b.createdAt.localeCompare(a.createdAt)
-        : a.createdAt.localeCompare(b.createdAt);
-    });
+        : a.createdAt.localeCompare(b.createdAt),
+    );
     return copy;
   }, [items, sortOrder]);
+
+  // 日付ごとにグルーピング
+  const groupedData = useMemo<GroupedItems[]>(() => {
+    const map = new Map<string, AlbumItem[]>();
+    for (const item of sortedItems) {
+      const key = formatDateKey(item.createdAt);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(item);
+    }
+    return Array.from(map.entries()).map(([date, items]) => ({ date, items }));
+  }, [sortedItems]);
 
   const selectedItem = useMemo(
     () => sortedItems.find((item) => item.id === selectedId) ?? null,
@@ -44,244 +60,324 @@ export function AlbumScreen({
   );
 
   useEffect(() => {
-    if (!highlightedPhotoId) {
-      return;
-    }
+    if (!highlightedPhotoId) return;
     const found = sortedItems.find((item) => item.photoId === highlightedPhotoId);
-    if (found) {
-      setSelectedId(found.id);
-    }
+    if (found) setSelectedId(found.id);
   }, [highlightedPhotoId, sortedItems]);
 
   const handleDelete = () => {
-    if (!selectedItem) {
-      return;
-    }
+    if (!selectedItem) return;
     onDeleteItem?.(selectedItem.id);
     setSelectedId(null);
   };
 
   return (
     <View style={styles.container}>
-      <View style={styles.topRow}>
+      {/* ヘッダー */}
+      <View style={styles.headerRow}>
         <View>
           <Text style={styles.title}>アルバム</Text>
-          <Text style={styles.subTitle}>{items.length}枚の写真</Text>
+          <Text style={styles.subtitle}>{items.length}枚の記録</Text>
         </View>
         <Pressable
-          style={styles.sortButton}
+          style={({ pressed }) => [styles.sortBtn, pressed && { opacity: 0.7 }]}
           onPress={() => setSortOrder((prev) => (prev === "newest" ? "oldest" : "newest"))}
         >
-          <Text style={styles.sortButtonText}>
-            {sortOrder === "newest" ? "新しい順" : "古い順"}
+          <Text style={styles.sortBtnText}>
+            {sortOrder === "newest" ? "新しい順 ↓" : "古い順 ↑"}
           </Text>
         </Pressable>
       </View>
 
       {sortedItems.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyText}>写真がまだありません</Text>
-          <Text style={styles.emptyHint}>「写真」タブから投稿してみましょう</Text>
+        /* Empty state */
+        <View style={styles.emptyWrap}>
+          <View style={styles.emptyIconWrap}>
+            <View style={styles.emptyIconGrid}>
+              {[0, 1, 2, 3].map((i) => (
+                <View key={i} style={styles.emptyIconCell} />
+              ))}
+            </View>
+          </View>
+          <Text style={styles.emptyTitle}>まだ記録がありません</Text>
+          <Text style={styles.emptyHint}>「記録する」タブから{"\n"}写真を投稿してみましょう</Text>
         </View>
       ) : (
         <FlatList
-          data={sortedItems}
-          keyExtractor={(item) => item.id}
-          numColumns={2}
-          initialNumToRender={8}
-          removeClippedSubviews
-          contentContainerStyle={styles.grid}
-          columnWrapperStyle={styles.column}
-          renderItem={({ item }) => (
-            <Pressable style={styles.card} onPress={() => setSelectedId(item.id)}>
-              <Image
-                source={{ uri: item.uri, cache: "force-cache" }}
-                style={styles.image}
-                resizeMode="cover"
-              />
-              <Text style={styles.meta}>{formatDate(item.createdAt)}</Text>
-            </Pressable>
+          data={groupedData}
+          keyExtractor={(group) => group.date}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          renderItem={({ item: group }) => (
+            <View style={styles.section}>
+              {/* 日付ヘッダー */}
+              <Text style={styles.sectionLabel}>{group.date}</Text>
+              {/* 2列グリッド */}
+              <View style={styles.grid}>
+                {group.items.map((item) => (
+                  <Pressable
+                    key={item.id}
+                    style={({ pressed }) => [styles.card, pressed && { opacity: 0.85 }]}
+                    onPress={() => setSelectedId(item.id)}
+                  >
+                    <Image
+                      source={{ uri: item.uri, cache: "force-cache" }}
+                      style={styles.cardImage}
+                      resizeMode="cover"
+                    />
+                    <Text style={styles.cardTime}>{formatTime(item.createdAt)}</Text>
+                  </Pressable>
+                ))}
+                {/* グリッドの最終行が奇数の場合の埋め合わせ */}
+                {group.items.length % 2 !== 0 ? <View style={styles.cardPlaceholder} /> : null}
+              </View>
+            </View>
           )}
         />
       )}
 
-      <Modal visible={!!selectedItem} transparent animationType="fade" onRequestClose={() => setSelectedId(null)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
+      {/* 詳細モーダル */}
+      <Modal
+        visible={!!selectedItem}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedId(null)}
+      >
+        <Pressable style={styles.backdrop} onPress={() => setSelectedId(null)}>
+          <Pressable style={styles.modalCard} onPress={() => {}}>
             {selectedItem ? (
               <>
-                <Image source={{ uri: selectedItem.uri }} style={styles.modalImage} resizeMode="cover" />
-                <Text style={styles.modalMeta}>{formatDate(selectedItem.createdAt)}</Text>
-                <Text style={styles.modalPhotoId}>photo #{selectedItem.photoId}</Text>
-                <View style={styles.modalActions}>
-                  <Pressable style={styles.closeButton} onPress={() => setSelectedId(null)}>
-                    <Text style={styles.closeButtonText}>閉じる</Text>
-                  </Pressable>
-                  <Pressable style={styles.deleteButton} onPress={handleDelete}>
-                    <Text style={styles.deleteButtonText}>削除</Text>
-                  </Pressable>
+                <Image
+                  source={{ uri: selectedItem.uri }}
+                  style={styles.modalImage}
+                  resizeMode="cover"
+                />
+                <View style={styles.modalMeta}>
+                  <View>
+                    <Text style={styles.modalDate}>{formatDateKey(selectedItem.createdAt)}</Text>
+                    <Text style={styles.modalTime}>{formatTime(selectedItem.createdAt)}</Text>
+                  </View>
+                  <View style={styles.modalActions}>
+                    <Pressable
+                      style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.7 }]}
+                      onPress={() => setSelectedId(null)}
+                    >
+                      <Text style={styles.closeBtnText}>閉じる</Text>
+                    </Pressable>
+                    <Pressable
+                      style={({ pressed }) => [styles.deleteBtn, pressed && { opacity: 0.7 }]}
+                      onPress={handleDelete}
+                    >
+                      <Text style={styles.deleteBtnText}>削除</Text>
+                    </Pressable>
+                  </View>
                 </View>
               </>
             ) : null}
-          </View>
-        </View>
+          </Pressable>
+        </Pressable>
       </Modal>
     </View>
   );
 }
 
-function formatDate(value: string): string {
+function formatDateKey(value: string): string {
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return date.toLocaleString("ja-JP", {
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("ja-JP", { month: "long", day: "numeric", weekday: "short" });
+}
+
+function formatTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString("ja-JP", { hour: "2-digit", minute: "2-digit" });
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FDFBE5",
-    paddingTop: 20,
-    paddingHorizontal: 16,
   },
-  topRow: {
+  // ── ヘッダー ─────────────────────────────────────────────
+  headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-end",
-    marginBottom: 14,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#DDD3BC",
   },
   title: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#1A1209",
-    letterSpacing: 0.3,
+    fontSize: 32,
+    fontWeight: "900",
+    color: "#2A1F12",
+    letterSpacing: -0.5,
   },
-  subTitle: {
-    color: "#9A8B78",
+  subtitle: {
+    color: "#8A7B68",
     fontSize: 13,
     marginTop: 2,
   },
-  sortButton: {
-    backgroundColor: "#FFFFFF",
+  sortBtn: {
     borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderWidth: 1,
-    borderColor: "#E8DFC8",
+    borderColor: "#DDD3BC",
+    backgroundColor: "#F8F4E3",
   },
-  sortButtonText: {
-    color: "#7697A0",
+  sortBtnText: {
+    color: "#4A6B78",
     fontSize: 12,
-    fontWeight: "700",
-  },
-  emptyCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#E8DFC8",
-    padding: 24,
-    alignItems: "center",
-    gap: 6,
-    marginTop: 20,
-  },
-  emptyText: {
-    color: "#6B5E4A",
-    fontSize: 15,
     fontWeight: "600",
   },
+  // ── Empty state ──────────────────────────────────────────
+  emptyWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+    paddingBottom: 60,
+  },
+  emptyIconWrap: {
+    marginBottom: 8,
+  },
+  emptyIconGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    width: 56,
+    gap: 5,
+  },
+  emptyIconCell: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    backgroundColor: "#DDD3BC",
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#4A3E2E",
+  },
   emptyHint: {
-    color: "#9A8B78",
     fontSize: 13,
+    color: "#8A7B68",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  // ── リスト ────────────────────────────────────────────────
+  listContent: {
+    paddingTop: 8,
+    paddingBottom: 24,
+  },
+  section: {
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#9A8B78",
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    paddingVertical: 10,
+    paddingHorizontal: 4,
   },
   grid: {
-    paddingBottom: 24,
-    gap: 10,
-  },
-  column: {
-    gap: 10,
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
   },
   card: {
-    flex: 1,
-    backgroundColor: "#FFFFFF",
+    width: "48.5%",
+    backgroundColor: "#F8F4E3",
     borderRadius: 12,
     overflow: "hidden",
-    borderWidth: 1,
-    borderColor: "#E8DFC8",
-    gap: 0,
+    shadowColor: "#2A1F12",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  image: {
+  cardImage: {
     width: "100%",
     aspectRatio: 1,
-    backgroundColor: "#F5F0E8",
   },
-  meta: {
-    color: "#9A8B78",
+  cardTime: {
+    color: "#8A7B68",
     fontSize: 11,
     paddingHorizontal: 8,
     paddingVertical: 6,
   },
-  modalBackdrop: {
+  cardPlaceholder: {
+    width: "48.5%",
+  },
+  // ── モーダル ──────────────────────────────────────────────
+  backdrop: {
     flex: 1,
-    backgroundColor: "rgba(26, 18, 9, 0.55)",
-    justifyContent: "center",
-    padding: 20,
+    backgroundColor: "rgba(26, 18, 9, 0.6)",
+    justifyContent: "flex-end",
+    padding: 16,
+    paddingBottom: 20,
   },
   modalCard: {
     backgroundColor: "#FDFBE5",
-    borderRadius: 16,
-    padding: 14,
-    gap: 10,
+    borderRadius: 20,
+    overflow: "hidden",
+    shadowColor: "#2A1F12",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 12,
   },
   modalImage: {
     width: "100%",
-    aspectRatio: 1,
-    borderRadius: 12,
-    backgroundColor: "#F5F0E8",
+    aspectRatio: 1.2,
   },
   modalMeta: {
-    color: "#1A1209",
-    fontSize: 14,
-    fontWeight: "600",
+    padding: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
-  modalPhotoId: {
-    color: "#9A8B78",
-    fontSize: 12,
+  modalDate: {
+    color: "#2A1F12",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  modalTime: {
+    color: "#8A7B68",
+    fontSize: 13,
+    marginTop: 2,
   },
   modalActions: {
     flexDirection: "row",
-    gap: 10,
-    marginTop: 2,
+    gap: 8,
   },
-  closeButton: {
-    flex: 2,
-    backgroundColor: "#7697A0",
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
+  closeBtn: {
+    backgroundColor: "#4A6B78",
+    borderRadius: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
   },
-  closeButtonText: {
+  closeBtnText: {
     color: "#FFFFFF",
     fontWeight: "700",
-    fontSize: 14,
+    fontSize: 13,
   },
-  deleteButton: {
-    flex: 1,
-    backgroundColor: "#FFF0EE",
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: "center",
+  deleteBtn: {
+    backgroundColor: "#FFF4F2",
+    borderRadius: 10,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
     borderWidth: 1,
     borderColor: "#EFCFCA",
   },
-  deleteButtonText: {
-    color: "#C0392B",
+  deleteBtnText: {
+    color: "#B03020",
     fontWeight: "700",
-    fontSize: 14,
+    fontSize: 13,
   },
 });
