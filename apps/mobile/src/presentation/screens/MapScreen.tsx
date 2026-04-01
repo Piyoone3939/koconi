@@ -177,8 +177,10 @@ export function MapScreen({
         {/* 現在地 glow dot */}
         {userLocation ? (
           <MapboxGL.MarkerView coordinate={userLocation} allowOverlap>
-            <View style={styles.userLocOuter}>
-              <View style={styles.userLocInner} />
+            <View style={styles.userLocHalo}>
+              <View style={styles.userLocOuter}>
+                <View style={styles.userLocInner} />
+              </View>
             </View>
           </MapboxGL.MarkerView>
         ) : null}
@@ -284,23 +286,36 @@ const styles = StyleSheet.create({
   map: { flex: 1 },
 
   // 現在地 glow
-  userLocOuter: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(232, 111, 0, 0.18)",
+  userLocHalo: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(232, 111, 0, 0.10)",
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#E86F00",
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 16,
+    shadowOpacity: 0.6,
+    shadowRadius: 24,
+    elevation: 0,
+  },
+  userLocOuter: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(232, 111, 0, 0.22)",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#E86F00",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 1,
+    shadowRadius: 12,
     elevation: 8,
   },
   userLocInner: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: "#E86F00",
     borderWidth: 2.5,
     borderColor: "#FFFFFF",
@@ -356,6 +371,43 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 20,
     lineHeight: 24,
+  },
+
+  // 左上オーバーレイ
+  topLeft: {
+    position: "absolute",
+    top: 16,
+    left: 16,
+    gap: 8,
+  },
+  cityName: {
+    fontSize: 32,
+    fontWeight: "900",
+    color: "#FFFFFF",
+    letterSpacing: -0.5,
+    textShadowColor: "rgba(0,0,0,0.5)",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  regionPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#E8B84B",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignSelf: "flex-start",
+  },
+  regionText: {
+    color: "#2A1F12",
+    fontWeight: "700",
+    fontSize: 13,
+    letterSpacing: 0.5,
+  },
+  regionChevron: {
+    color: "#2A1F12",
+    fontSize: 12,
   },
 
   // オーバーレイ
