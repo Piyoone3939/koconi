@@ -2,12 +2,13 @@ import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Easing, Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_BASE_URL, checkApiReachability, createKoconiGateway } from "./src/infrastructure/http";
 import { FriendsScreen } from "./src/presentation/screens/FriendsScreen";
 import { MapScreen } from "./src/presentation/screens/MapScreen";
 import { ProfileScreen } from "./src/presentation/screens/ProfileScreen";
 import { RecordScreen, type AlbumItem, type AlbumPhotoInput } from "./src/presentation/screens/RecordScreen";
+import { FriendsIcon, MapIcon, PhotoIcon, ProfileIcon } from "./src/presentation/components/TabIcons";
 
 type GenerationStatus = "idle" | "pending" | "processing" | "done" | "failed";
 type TabKey = "map" | "record" | "friends" | "profile";
@@ -20,6 +21,15 @@ type ApiConnectionState =
   | { status: "error"; message: string };
 
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <AppContent />
+    </SafeAreaProvider>
+  );
+}
+
+function AppContent() {
+  const insets = useSafeAreaInsets();
   const gateway = useMemo(() => createKoconiGateway(), []);
   const [tab, setTab] = useState<TabKey>("map");
   const [apiConnection, setApiConnection] = useState<ApiConnectionState>({ status: "checking" });
@@ -156,15 +166,25 @@ export default function App() {
     setTab("record");
   };
 
-  const TAB_ITEMS: { key: TabKey; label: string; icon: string }[] = [
-    { key: "map",     label: "地図",       icon: "🗺" },
-    { key: "record",  label: "記録",       icon: "📷" },
-    { key: "friends", label: "フレンド",   icon: "👥" },
-    { key: "profile", label: "プロフィール", icon: "👤" },
+  const TAB_ITEMS: { key: TabKey; label: string }[] = [
+    { key: "map",     label: "Map"     },
+    { key: "record",  label: "Photo"   },
+    { key: "friends", label: "Friends" },
+    { key: "profile", label: "Profile" },
   ];
 
+  const TAB_ICON_SIZE = 22;
+  const tabIcon = (key: TabKey, color: string) => {
+    switch (key) {
+      case "map":     return <MapIcon     color={color} size={TAB_ICON_SIZE} />;
+      case "record":  return <PhotoIcon   color={color} size={TAB_ICON_SIZE} />;
+      case "friends": return <FriendsIcon color={color} size={TAB_ICON_SIZE} />;
+      case "profile": return <ProfileIcon color={color} size={TAB_ICON_SIZE} />;
+    }
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <StatusBar style="dark" />
 
       {/* API接続バナー */}
@@ -239,10 +259,11 @@ export default function App() {
       ) : null}
 
       {/* タブバー */}
-      <View style={styles.tabBarOuter}>
+      <View style={[styles.tabBarOuter, { bottom: insets.bottom }]}>
         <View style={styles.tabBar}>
-          {TAB_ITEMS.map(({ key, label, icon }) => {
+          {TAB_ITEMS.map(({ key, label }) => {
             const active = tab === key;
+            const iconColor = active ? "#F2C94C" : "rgba(255,255,255,0.55)";
             return (
               <Pressable
                 key={key}
@@ -253,7 +274,7 @@ export default function App() {
                 ]}
                 onPress={() => setTab(key)}
               >
-                <Text style={[styles.tabIcon, active && styles.tabIconActive]}>{icon}</Text>
+                {tabIcon(key, iconColor)}
                 <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{label}</Text>
               </Pressable>
             );
@@ -333,54 +354,43 @@ const styles = StyleSheet.create({
   toastDoneText: { color: "#2E6B2E", fontSize: 13, fontWeight: "700" },
   toastFailedText: { color: "#B03020", fontSize: 13, fontWeight: "700" },
 
-  // タブバー（Walkable風）
+  // タブバー
   tabBarOuter: {
-    paddingHorizontal: 12,
-    paddingBottom: 4,
+    position: "absolute",
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingBottom: 10,
     paddingTop: 6,
-    backgroundColor: "#FDFBE5",
-    borderTopWidth: 1,
-    borderTopColor: "#DDD3BC",
+    backgroundColor: "transparent",
   },
   tabBar: {
     flexDirection: "row",
-    backgroundColor: "#EAE3D0",
-    borderRadius: 20,
-    paddingHorizontal: 4,
-    paddingVertical: 4,
-    height: 58,
+    backgroundColor: "#1E1E1E",
+    borderRadius: 36,
+    paddingHorizontal: 6,
+    paddingVertical: 6,
+    height: 66,
   },
   tabItem: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 16,
-    gap: 2,
+    borderRadius: 30,
+    gap: 3,
     paddingVertical: 4,
   },
   tabItemActive: {
-    backgroundColor: "#FDFBE5",
-    shadowColor: "#2A1F12",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  tabIcon: {
-    fontSize: 18,
-    opacity: 0.45,
-  },
-  tabIconActive: {
-    opacity: 1,
+    backgroundColor: "#3C3C3C",
   },
   tabLabel: {
     fontSize: 10,
     fontWeight: "600",
-    color: "#9A8B78",
+    color: "rgba(255,255,255,0.55)",
     letterSpacing: 0.1,
   },
   tabLabelActive: {
-    color: "#E86F00",
+    color: "#F2C94C",
     fontWeight: "700",
   },
 

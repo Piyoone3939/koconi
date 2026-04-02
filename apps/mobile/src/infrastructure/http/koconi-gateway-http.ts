@@ -139,7 +139,6 @@ export class KoconiGatewayHttp implements KoconiGateway {
       scale: command.scale,
       rotation: command.rotation,
       match_score: command.matchScore,
-      model_url: command.modelUrl ?? "",
     };
 
     const response = await this.httpClient.request<CreatePlacementResponse>("/v1/placements", {
