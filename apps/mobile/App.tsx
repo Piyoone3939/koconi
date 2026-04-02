@@ -2,7 +2,7 @@ import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, Animated, Easing, Image, Pressable, StyleSheet, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { API_BASE_URL, checkApiReachability, createKoconiGateway } from "./src/infrastructure/http";
 import { FriendsScreen } from "./src/presentation/screens/FriendsScreen";
 import { MapScreen } from "./src/presentation/screens/MapScreen";
@@ -21,6 +21,15 @@ type ApiConnectionState =
   | { status: "error"; message: string };
 
 export default function App() {
+  return (
+    <SafeAreaProvider>
+      <AppContent />
+    </SafeAreaProvider>
+  );
+}
+
+function AppContent() {
+  const insets = useSafeAreaInsets();
   const gateway = useMemo(() => createKoconiGateway(), []);
   const [tab, setTab] = useState<TabKey>("map");
   const [apiConnection, setApiConnection] = useState<ApiConnectionState>({ status: "checking" });
@@ -175,7 +184,7 @@ export default function App() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <StatusBar style="dark" />
 
       {/* API接続バナー */}
@@ -250,11 +259,11 @@ export default function App() {
       ) : null}
 
       {/* タブバー */}
-      <View style={styles.tabBarOuter}>
+      <View style={[styles.tabBarOuter, { bottom: insets.bottom }]}>
         <View style={styles.tabBar}>
           {TAB_ITEMS.map(({ key, label }) => {
             const active = tab === key;
-            const iconColor = active ? "#E86F00" : "rgba(253,251,229,0.45)";
+            const iconColor = active ? "#F2C94C" : "rgba(255,255,255,0.55)";
             return (
               <Pressable
                 key={key}
@@ -345,19 +354,20 @@ const styles = StyleSheet.create({
   toastDoneText: { color: "#2E6B2E", fontSize: 13, fontWeight: "700" },
   toastFailedText: { color: "#B03020", fontSize: 13, fontWeight: "700" },
 
-  // タブバー（Walkable風ダーク）
+  // タブバー
   tabBarOuter: {
+    position: "absolute",
+    left: 0,
+    right: 0,
     paddingHorizontal: 16,
     paddingBottom: 10,
-    paddingTop: 10,
-    backgroundColor: "#FDFBE5",
-    borderTopWidth: 1,
-    borderTopColor: "#DDD3BC",
+    paddingTop: 6,
+    backgroundColor: "transparent",
   },
   tabBar: {
     flexDirection: "row",
-    backgroundColor: "#2A1F12",
-    borderRadius: 32,
+    backgroundColor: "#1E1E1E",
+    borderRadius: 36,
     paddingHorizontal: 6,
     paddingVertical: 6,
     height: 66,
@@ -366,26 +376,21 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 26,
+    borderRadius: 30,
     gap: 3,
     paddingVertical: 4,
   },
   tabItemActive: {
-    backgroundColor: "#FDFBE5",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
+    backgroundColor: "#3C3C3C",
   },
   tabLabel: {
     fontSize: 10,
     fontWeight: "600",
-    color: "rgba(253,251,229,0.45)",
+    color: "rgba(255,255,255,0.55)",
     letterSpacing: 0.1,
   },
   tabLabelActive: {
-    color: "#E86F00",
+    color: "#F2C94C",
     fontWeight: "700",
   },
 
