@@ -60,7 +60,22 @@ func main() {
 	get3DStatusUC := usecase.NewGetPhoto3DStatusUseCase(photoRepo, placementRepo, aiClient)
 	photo3DStatusHandler := handler.NewPhoto3DStatusHandler(get3DStatusUC)
 
-	r := apphttp.NewRouter(memoryHandler, photoHandler, placementHandler, photoMatchHandler, photo3DStatusHandler)
+	statsRepo := repository.NewStatsRepository(pool)
+	statsUC := usecase.NewGetStatsUseCase(statsRepo)
+	statsHandler := handler.NewStatsHandler(statsUC)
+
+	userRepo := repository.NewUserRepository(pool)
+	friendRepo := repository.NewFriendRequestRepository(pool)
+	registerUserUC := usecase.NewRegisterUserUseCase(userRepo)
+	searchUserUC := usecase.NewSearchUserUseCase(userRepo)
+	sendFriendReqUC := usecase.NewSendFriendRequestUseCase(userRepo, friendRepo)
+	listFriendsUC := usecase.NewListFriendsUseCase(userRepo, friendRepo)
+	listIncomingUC := usecase.NewListIncomingRequestsUseCase(userRepo, friendRepo)
+	respondFriendReqUC := usecase.NewRespondFriendRequestUseCase(userRepo, friendRepo)
+	userHandler := handler.NewUserHandler(registerUserUC, searchUserUC)
+	friendHandler := handler.NewFriendHandler(sendFriendReqUC, listFriendsUC, listIncomingUC, respondFriendReqUC)
+
+	r := apphttp.NewRouter(memoryHandler, photoHandler, placementHandler, photoMatchHandler, photo3DStatusHandler, statsHandler, userHandler, friendHandler)
 
 	srv := &http.Server{
 		Addr:              ":3000",

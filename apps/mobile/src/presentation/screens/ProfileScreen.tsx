@@ -1,10 +1,33 @@
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import * as Clipboard from "expo-clipboard";
+import type { KoconiGateway } from "../../domain/ports/koconi-gateway";
+import type { KoconiUser } from "../../domain/models/koconi";
 
-const DISPLAY_NAME = "Koconi User";
-const USER_TAG = "@koconi_user";
-const AVATAR_INITIAL = "K";
+type Props = { gateway: KoconiGateway; currentUser: KoconiUser | null; friendCount: number };
 
-export function ProfileScreen() {
+export function ProfileScreen({ gateway, currentUser, friendCount }: Props) {
+  const [photoCount, setPhotoCount] = useState(0);
+  const [placementCount, setPlacementCount] = useState(0);
+  const [copied, setCopied] = useState(false);
+
+  const displayName = currentUser?.displayName ?? "Koconi User";
+  const userTag = currentUser?.userTag ?? "@koconi_...";
+  const avatarInitial = displayName[0]?.toUpperCase() ?? "K";
+
+  useEffect(() => {
+    gateway.getStats().then((s) => {
+      setPhotoCount(s.photoCount);
+      setPlacementCount(s.placementCount);
+    }).catch(() => {});
+  }, [gateway]);
+
+  const handleCopyTag = async () => {
+    await Clipboard.setStringAsync(userTag);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -23,13 +46,13 @@ export function ProfileScreen() {
         {/* アバター + 名前 */}
         <View style={styles.profileRow}>
           <View style={styles.avatar}>
-            <Text style={styles.avatarInitial}>{AVATAR_INITIAL}</Text>
+            <Text style={styles.avatarInitial}>{avatarInitial}</Text>
           </View>
           <View style={styles.profileInfo}>
-            <Text style={styles.displayName}>{DISPLAY_NAME}</Text>
-            <Pressable style={styles.tagRow}>
-              <Text style={styles.userTag}>{USER_TAG}</Text>
-              <Text style={styles.copyIcon}>⧉</Text>
+            <Text style={styles.displayName}>{displayName}</Text>
+            <Pressable style={styles.tagRow} onPress={handleCopyTag}>
+              <Text style={styles.userTag}>{userTag}</Text>
+              <Text style={styles.copyIcon}>{copied ? "✓" : "⧉"}</Text>
             </Pressable>
           </View>
         </View>
@@ -64,17 +87,17 @@ export function ProfileScreen() {
         {/* 統計 */}
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>0</Text>
+            <Text style={styles.statValue}>{photoCount}</Text>
             <Text style={styles.statLabel}>記録</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>0</Text>
+            <Text style={styles.statValue}>{friendCount}</Text>
             <Text style={styles.statLabel}>フレンド</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>0</Text>
+            <Text style={styles.statValue}>{placementCount}</Text>
             <Text style={styles.statLabel}>3Dモデル</Text>
           </View>
         </View>

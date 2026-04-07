@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -7,10 +8,103 @@ import {
   TextInput,
   View,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
+import type { KoconiGateway } from "../../domain/ports/koconi-gateway";
+import type { FriendRequest, KoconiUser } from "../../domain/models/koconi";
 
-export function FriendsScreen() {
+type Props = {
+  gateway: KoconiGateway;
+  deviceId: string;
+  currentUser: KoconiUser | null;
+};
+
+export function FriendsScreen({ gateway, deviceId, currentUser }: Props) {
   const [searchQuery, setSearchQuery] = useState("");
-  const userTag = "@koconi_user";
+  const [searchResult, setSearchResult] = useState<KoconiUser | null | "not_found">(null);
+  const [searching, setSearching] = useState(false);
+  const [friends, setFriends] = useState<KoconiUser[]>([]);
+  const [incoming, setIncoming] = useState<FriendRequest[]>([]);
+  const [copied, setCopied] = useState(false);
+  const [sendingTo, setSendingTo] = useState<string | null>(null);
+
+  const userTag = currentUser?.userTag ?? "@koconi_...";
+
+  useEffect(() => {
+    if (!deviceId) return;
+    void loadFriends();
+    void loadIncoming();
+  }, [deviceId]);
+
+  const loadFriends = async () => {
+    try {
+      const list = await gateway.listFriends(deviceId);
+      setFriends(list);
+    } catch {
+      // ignore
+    }
+  };
+
+  const loadIncoming = async () => {
+    try {
+      const list = await gateway.listIncomingRequests(deviceId);
+      setIncoming(list);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleCopyTag = async () => {
+    await Clipboard.setStringAsync(userTag);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleSearch = async () => {
+    const tag = searchQuery.trim();
+    if (!tag) return;
+    setSearching(true);
+    setSearchResult(null);
+    try {
+      const user = await gateway.searchUser(tag);
+      setSearchResult(user ?? "not_found");
+    } catch {
+      setSearchResult("not_found");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const handleSendRequest = async (toTag: string) => {
+    setSendingTo(toTag);
+    try {
+      await gateway.sendFriendRequest({ deviceId, toTag });
+      setSearchResult(null);
+      setSearchQuery("");
+    } catch {
+      // ignore
+    } finally {
+      setSendingTo(null);
+    }
+  };
+
+  const handleAccept = async (requestId: number) => {
+    try {
+      await gateway.acceptFriendRequest(deviceId, requestId);
+      await loadIncoming();
+      await loadFriends();
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleReject = async (requestId: number) => {
+    try {
+      await gateway.rejectFriendRequest(deviceId, requestId);
+      await loadIncoming();
+    } catch {
+      // ignore
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -20,76 +114,129 @@ export function FriendsScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* ヘッダー */}
         <Text style={styles.title}>フレンド</Text>
 
-        {/* 検索バー */}
-        <View style={styles.searchBar}>
-          <Text style={styles.searchIcon}>🔍</Text>
-          <TextInput
-            style={styles.searchInput}
-            placeholder="ユーザータグで検索"
-            placeholderTextColor="#9A8B78"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            autoCapitalize="none"
-          />
-        </View>
-
-        {/* 上部カード2列 */}
-        <View style={styles.cardRow}>
+        {/* タグ共有 */}
+        <View style={styles.tagCard}>
+          <Text style={styles.tagCardLabel}>あなたのタグ</Text>
           <Pressable
-            style={({ pressed }) => [styles.actionCard, styles.actionCardInvite, pressed && { opacity: 0.8 }]}
+            style={({ pressed }) => [styles.tagPill, pressed && { opacity: 0.7 }]}
+            onPress={handleCopyTag}
           >
-            <Text style={styles.actionCardIcon}>👥</Text>
-            <Text style={styles.actionCardTitle}>フレンドを招待</Text>
-            <Text style={styles.actionCardSub}>一緒に記録しよう</Text>
-          </Pressable>
-
-          <Pressable
-            style={({ pressed }) => [styles.actionCard, styles.actionCardLeader, pressed && { opacity: 0.8 }]}
-          >
-            <Text style={styles.actionCardIcon}>📊</Text>
-            <Text style={styles.actionCardTitle}>ランキング</Text>
-            <Text style={styles.actionCardSub}>近日公開予定</Text>
+            <Text style={styles.tagText}>{userTag}</Text>
+            <Text style={styles.tagCopyIcon}>{copied ? "✓" : "⧉"}</Text>
           </Pressable>
         </View>
 
-        {/* 招待カード */}
-        <View style={styles.inviteCard}>
-          <Text style={styles.inviteCardTitle}>フレンドを招待する</Text>
-          <Text style={styles.inviteCardSub}>一緒に街を記録しよう</Text>
+        {/* 検索 */}
+        <View style={styles.searchSection}>
+          <View style={styles.searchBar}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="タグで検索 (@koconi_xxxxx)"
+              placeholderTextColor="#9A8B78"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onSubmitEditing={handleSearch}
+              autoCapitalize="none"
+              returnKeyType="search"
+            />
+            <Pressable
+              style={({ pressed }) => [styles.searchBtn, pressed && { opacity: 0.7 }]}
+              onPress={handleSearch}
+            >
+              {searching ? (
+                <ActivityIndicator size="small" color="#FDFBE5" />
+              ) : (
+                <Text style={styles.searchBtnText}>検索</Text>
+              )}
+            </Pressable>
+          </View>
 
-          {/* ダッシュ丸アイコン列 */}
-          <View style={styles.avatarRow}>
-            {[0, 1, 2, 3, 4].map((i) => (
-              <View key={i} style={styles.avatarCircle}>
-                <Text style={styles.avatarPlus}>+</Text>
+          {searchResult && searchResult !== "not_found" && (
+            <View style={styles.searchResultCard}>
+              <View style={styles.userRow}>
+                <View style={styles.userAvatar}>
+                  <Text style={styles.userAvatarText}>{searchResult.displayName[0] ?? "?"}</Text>
+                </View>
+                <View style={styles.userInfo}>
+                  <Text style={styles.userName}>{searchResult.displayName}</Text>
+                  <Text style={styles.userTagText}>{searchResult.userTag}</Text>
+                </View>
+              </View>
+              <Pressable
+                style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.8 }]}
+                onPress={() => handleSendRequest(searchResult.userTag)}
+                disabled={sendingTo === searchResult.userTag}
+              >
+                {sendingTo === searchResult.userTag ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.addBtnText}>申請を送る</Text>
+                )}
+              </Pressable>
+            </View>
+          )}
+          {searchResult === "not_found" && (
+            <Text style={styles.notFoundText}>ユーザーが見つかりませんでした</Text>
+          )}
+        </View>
+
+        {/* 受信した申請 */}
+        {incoming.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>フレンド申請 ({incoming.length})</Text>
+            {incoming.map((req) => (
+              <View key={req.id} style={styles.requestCard}>
+                <View style={styles.userRow}>
+                  <View style={styles.userAvatar}>
+                    <Text style={styles.userAvatarText}>{req.fromUser.displayName[0] ?? "?"}</Text>
+                  </View>
+                  <View style={styles.userInfo}>
+                    <Text style={styles.userName}>{req.fromUser.displayName}</Text>
+                    <Text style={styles.userTagText}>{req.fromUser.userTag}</Text>
+                  </View>
+                </View>
+                <View style={styles.requestBtns}>
+                  <Pressable
+                    style={({ pressed }) => [styles.acceptBtn, pressed && { opacity: 0.8 }]}
+                    onPress={() => handleAccept(req.id)}
+                  >
+                    <Text style={styles.acceptBtnText}>承認</Text>
+                  </Pressable>
+                  <Pressable
+                    style={({ pressed }) => [styles.rejectBtn, pressed && { opacity: 0.8 }]}
+                    onPress={() => handleReject(req.id)}
+                  >
+                    <Text style={styles.rejectBtnText}>拒否</Text>
+                  </Pressable>
+                </View>
               </View>
             ))}
           </View>
+        )}
 
-          {/* タグ共有 */}
-          <Text style={styles.shareTagLabel}>タグをコピーして共有</Text>
-          <Pressable
-            style={({ pressed }) => [styles.tagPill, pressed && { opacity: 0.7 }]}
-          >
-            <Text style={styles.tagText}>{userTag}</Text>
-            <Text style={styles.tagCopyIcon}>⧉</Text>
-          </Pressable>
-
-          {/* 共有ボタン */}
-          <Pressable
-            style={({ pressed }) => [styles.inviteBtn, pressed && { opacity: 0.85 }]}
-          >
-            <Text style={styles.inviteBtnText}>招待する</Text>
-          </Pressable>
-        </View>
-
-        {/* フレンドリスト（空） */}
-        <View style={styles.emptyFriends}>
-          <Text style={styles.emptyFriendsText}>まだフレンドがいません</Text>
-          <Text style={styles.emptyFriendsHint}>タグを共有してフレンドを追加しよう</Text>
+        {/* フレンドリスト */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>フレンド ({friends.length})</Text>
+          {friends.length === 0 ? (
+            <View style={styles.emptyFriends}>
+              <Text style={styles.emptyFriendsText}>まだフレンドがいません</Text>
+              <Text style={styles.emptyFriendsHint}>タグを共有してフレンドを追加しよう</Text>
+            </View>
+          ) : (
+            friends.map((u) => (
+              <View key={u.id} style={styles.friendCard}>
+                <View style={styles.userAvatar}>
+                  <Text style={styles.userAvatarText}>{u.displayName[0] ?? "?"}</Text>
+                </View>
+                <View style={styles.userInfo}>
+                  <Text style={styles.userName}>{u.displayName}</Text>
+                  <Text style={styles.userTagText}>{u.userTag}</Text>
+                </View>
+              </View>
+            ))
+          )}
         </View>
       </ScrollView>
     </View>
@@ -97,18 +244,10 @@ export function FriendsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#FDFBE5",
-  },
+  container: { flex: 1, backgroundColor: "#FDFBE5" },
   scroll: { flex: 1 },
-  content: {
-    padding: 20,
-    gap: 16,
-    paddingBottom: 40,
-  },
+  content: { padding: 20, gap: 16, paddingBottom: 120 },
 
-  // ヘッダー
   title: {
     fontSize: 32,
     fontWeight: "900",
@@ -116,102 +255,17 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
 
-  // 検索バー
-  searchBar: {
-    flexDirection: "row",
-    alignItems: "center",
+  // タグカード
+  tagCard: {
     backgroundColor: "#F0EBD8",
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    gap: 10,
-    borderWidth: 1,
-    borderColor: "#DDD3BC",
-  },
-  searchIcon: { fontSize: 15 },
-  searchInput: {
-    flex: 1,
-    fontSize: 14,
-    color: "#2A1F12",
-  },
-
-  // 上部カード2列
-  cardRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  actionCard: {
-    flex: 1,
     borderRadius: 16,
     padding: 16,
-    gap: 4,
-  },
-  actionCardInvite: {
-    backgroundColor: "#E8F0E8",
-    borderWidth: 1,
-    borderColor: "#C8DAC8",
-  },
-  actionCardLeader: {
-    backgroundColor: "#EFE8D4",
-    borderWidth: 1,
-    borderColor: "#DDD3BC",
-  },
-  actionCardIcon: { fontSize: 22, marginBottom: 2 },
-  actionCardTitle: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#2A1F12",
-  },
-  actionCardSub: {
-    fontSize: 11,
-    color: "#8A7B68",
-  },
-
-  // 招待カード
-  inviteCard: {
-    backgroundColor: "#F0EBD8",
-    borderRadius: 20,
-    padding: 20,
-    gap: 14,
+    gap: 10,
     borderWidth: 1,
     borderColor: "#DDD3BC",
     alignItems: "center",
   },
-  inviteCardTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    color: "#2A1F12",
-    textAlign: "center",
-  },
-  inviteCardSub: {
-    fontSize: 12,
-    color: "#8A7B68",
-    textAlign: "center",
-    marginTop: -8,
-  },
-  avatarRow: {
-    flexDirection: "row",
-    gap: -8,
-    marginVertical: 4,
-  },
-  avatarCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: "#C8B89A",
-    borderStyle: "dashed",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "#FDFBE5",
-    marginLeft: -4,
-  },
-  avatarPlus: {
-    color: "#C8B89A",
-    fontSize: 18,
-    fontWeight: "300",
-  },
-  shareTagLabel: {
+  tagCardLabel: {
     fontSize: 12,
     color: "#8A7B68",
   },
@@ -224,44 +278,118 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 10,
   },
-  tagText: {
-    color: "#FDFBE5",
-    fontSize: 14,
-    fontWeight: "600",
+  tagText: { color: "#FDFBE5", fontSize: 14, fontWeight: "600" },
+  tagCopyIcon: { color: "#E86F00", fontSize: 16 },
+
+  // 検索
+  searchSection: { gap: 10 },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F0EBD8",
+    borderRadius: 14,
+    paddingLeft: 14,
+    paddingRight: 6,
+    paddingVertical: 6,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#DDD3BC",
   },
-  tagCopyIcon: {
-    color: "#E86F00",
-    fontSize: 16,
-  },
-  inviteBtn: {
+  searchInput: { flex: 1, fontSize: 14, color: "#2A1F12", paddingVertical: 6 },
+  searchBtn: {
     backgroundColor: "#E86F00",
-    borderRadius: 50,
-    paddingHorizontal: 48,
-    paddingVertical: 14,
-    width: "100%",
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    minWidth: 56,
     alignItems: "center",
   },
-  inviteBtnText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
+  searchBtnText: { color: "#FFFFFF", fontWeight: "700", fontSize: 13 },
+  searchResultCard: {
+    backgroundColor: "#F0EBD8",
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#DDD3BC",
+  },
+  notFoundText: { color: "#9A8B78", fontSize: 13, textAlign: "center", paddingVertical: 4 },
+
+  // セクション
+  section: { gap: 10 },
+  sectionTitle: {
     fontSize: 14,
-    letterSpacing: 0.5,
+    fontWeight: "700",
+    color: "#4A3E2E",
   },
 
-  // フレンドリスト空
-  emptyFriends: {
+  // ユーザー行
+  userRow: { flexDirection: "row", alignItems: "center", gap: 12 },
+  userAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#7697A0",
     alignItems: "center",
-    paddingVertical: 20,
-    gap: 6,
+    justifyContent: "center",
   },
-  emptyFriendsText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#6B5E4A",
+  userAvatarText: { color: "#FFFFFF", fontWeight: "700", fontSize: 16 },
+  userInfo: { flex: 1, gap: 2 },
+  userName: { fontSize: 14, fontWeight: "700", color: "#2A1F12" },
+  userTagText: { fontSize: 12, color: "#8A7B68" },
+
+  // 申請ボタン
+  addBtn: {
+    backgroundColor: "#E86F00",
+    borderRadius: 50,
+    paddingVertical: 10,
+    alignItems: "center",
   },
-  emptyFriendsHint: {
-    fontSize: 12,
-    color: "#9A8B78",
-    textAlign: "center",
+  addBtnText: { color: "#FFFFFF", fontWeight: "700", fontSize: 13 },
+
+  // 申請カード
+  requestCard: {
+    backgroundColor: "#F0EBD8",
+    borderRadius: 14,
+    padding: 14,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: "#DDD3BC",
   },
+  requestBtns: { flexDirection: "row", gap: 8 },
+  acceptBtn: {
+    flex: 1,
+    backgroundColor: "#E86F00",
+    borderRadius: 50,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  acceptBtnText: { color: "#FFFFFF", fontWeight: "700", fontSize: 13 },
+  rejectBtn: {
+    flex: 1,
+    backgroundColor: "#EAE3D0",
+    borderRadius: 50,
+    paddingVertical: 10,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#DDD3BC",
+  },
+  rejectBtnText: { color: "#6B5E4A", fontWeight: "700", fontSize: 13 },
+
+  // フレンドカード
+  friendCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#F0EBD8",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#DDD3BC",
+  },
+
+  // 空
+  emptyFriends: { alignItems: "center", paddingVertical: 20, gap: 6 },
+  emptyFriendsText: { fontSize: 14, fontWeight: "600", color: "#6B5E4A" },
+  emptyFriendsHint: { fontSize: 12, color: "#9A8B78", textAlign: "center" },
 });

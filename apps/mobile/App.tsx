@@ -9,6 +9,13 @@ import { MapScreen } from "./src/presentation/screens/MapScreen";
 import { ProfileScreen } from "./src/presentation/screens/ProfileScreen";
 import { RecordScreen, type AlbumItem, type AlbumPhotoInput } from "./src/presentation/screens/RecordScreen";
 import { FriendsIcon, MapIcon, PhotoIcon, ProfileIcon } from "./src/presentation/components/TabIcons";
+import type { KoconiUser } from "./src/domain/models/koconi";
+
+const DEVICE_ID_KEY = "koconi:device_id";
+
+function generateDeviceId(): string {
+  return "device-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
 
 type GenerationStatus = "idle" | "pending" | "processing" | "done" | "failed";
 type TabKey = "map" | "record" | "friends" | "profile";
@@ -43,6 +50,9 @@ function AppContent() {
   const [splashVisible, setSplashVisible] = useState(true);
   const splashScale = useRef(new Animated.Value(1)).current;
   const splashOpacity = useRef(new Animated.Value(1)).current;
+  const [deviceId, setDeviceId] = useState<string>("");
+  const [currentUser, setCurrentUser] = useState<KoconiUser | null>(null);
+  const [friends, setFriends] = useState<KoconiUser[]>([]);
 
   // スプラッシュ
   useEffect(() => {
@@ -100,6 +110,27 @@ function AppContent() {
   useEffect(() => {
     void handleCheckApiReachability();
   }, []);
+
+  // デバイスID取得 & ユーザー登録
+  useEffect(() => {
+    const initUser = async () => {
+      let id = await AsyncStorage.getItem(DEVICE_ID_KEY);
+      if (!id) {
+        id = generateDeviceId();
+        await AsyncStorage.setItem(DEVICE_ID_KEY, id);
+      }
+      setDeviceId(id);
+      try {
+        const user = await gateway.registerUser({ deviceId: id });
+        setCurrentUser(user);
+        const list = await gateway.listFriends(id);
+        setFriends(list);
+      } catch {
+        // API未接続時は無視
+      }
+    };
+    void initUser();
+  }, [gateway]);
 
   const handleCheckApiReachability = async () => {
     setApiConnection({ status: "checking" });
@@ -225,8 +256,12 @@ function AppContent() {
             onDeleteItem={handleDeleteAlbumItem}
           />
         ) : null}
-        {tab === "friends" ? <FriendsScreen /> : null}
-        {tab === "profile" ? <ProfileScreen /> : null}
+        {tab === "friends" ? (
+          <FriendsScreen gateway={gateway} deviceId={deviceId} currentUser={currentUser} />
+        ) : null}
+        {tab === "profile" ? (
+          <ProfileScreen gateway={gateway} currentUser={currentUser} friendCount={friends.length} />
+        ) : null}
       </View>
 
       {/* 3D生成トースト */}

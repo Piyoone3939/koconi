@@ -1,13 +1,18 @@
 import type { components } from "../../types/api.generated";
 import type {
   AIMatchResult,
+  AppStats,
   CreatePhotoCommand,
   CreatePlacementCommand,
+  FriendRequest,
+  KoconiUser,
   LandmarkPlacement,
   ListPlacementsByBoundsQuery,
   MatchPhotoCommand,
   Photo,
   Photo3DStatus,
+  RegisterUserCommand,
+  SendFriendRequestCommand,
 } from "../../domain/models/koconi";
 import type { KoconiGateway } from "../../domain/ports/koconi-gateway";
 import { HttpClient } from "./http-client";
@@ -170,6 +175,79 @@ export class KoconiGatewayHttp implements KoconiGateway {
     };
   }
 
+  async getStats(): Promise<AppStats> {
+    const response = await this.httpClient.request<{
+      ok: boolean;
+      photo_count: number;
+      placement_count: number;
+    }>("/v1/stats");
+
+    return {
+      photoCount: response.photo_count ?? 0,
+      placementCount: response.placement_count ?? 0,
+    };
+  }
+
+  async registerUser(command: RegisterUserCommand): Promise<KoconiUser> {
+    const response = await this.httpClient.request<{ ok: boolean; user: RawUser }>("/v1/users/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: command.deviceId }),
+    });
+    return mapUser(response.user);
+  }
+
+  async searchUser(tag: string): Promise<KoconiUser | null> {
+    try {
+      const response = await this.httpClient.request<{ ok: boolean; user: RawUser }>("/v1/users/search", {
+        query: { tag },
+      });
+      return mapUser(response.user);
+    } catch {
+      return null;
+    }
+  }
+
+  async sendFriendRequest(command: SendFriendRequestCommand): Promise<FriendRequest> {
+    const response = await this.httpClient.request<{ ok: boolean; request: RawFriendRequest }>("/v1/friends/requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: command.deviceId, to_tag: command.toTag }),
+    });
+    return mapFriendRequest(response.request);
+  }
+
+  async listFriends(deviceId: string): Promise<KoconiUser[]> {
+    const response = await this.httpClient.request<{ ok: boolean; friends: RawUser[] }>("/v1/friends", {
+      query: { device_id: deviceId },
+    });
+    return (response.friends ?? []).map(mapUser);
+  }
+
+  async listIncomingRequests(deviceId: string): Promise<FriendRequest[]> {
+    const response = await this.httpClient.request<{ ok: boolean; requests: RawFriendRequest[] }>(
+      "/v1/friends/requests/incoming",
+      { query: { device_id: deviceId } },
+    );
+    return (response.requests ?? []).map(mapFriendRequest);
+  }
+
+  async acceptFriendRequest(deviceId: string, requestId: number): Promise<void> {
+    await this.httpClient.request<{ ok: boolean }>(`/v1/friends/requests/${requestId}/accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: deviceId }),
+    });
+  }
+
+  async rejectFriendRequest(deviceId: string, requestId: number): Promise<void> {
+    await this.httpClient.request<{ ok: boolean }>(`/v1/friends/requests/${requestId}/reject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: deviceId }),
+    });
+  }
+
   async listPlacementsByBounds(query: ListPlacementsByBoundsQuery): Promise<LandmarkPlacement[]> {
     const response = await this.httpClient.request<ListPlacementsResponse>("/v1/placements", {
       query: {
@@ -217,6 +295,36 @@ function mapPlacement(placement: components["schemas"]["LandmarkPlacement"]): La
     matchScore: toNullableNumber(source.match_score ?? source.MatchScore),
     modelUrl: toString(source.model_url ?? source.ModelURL),
     createdAt: toString(source.created_at ?? source.CreatedAt),
+  };
+}
+
+type RawUser = {
+  id: number;
+  display_name: string;
+  user_tag: string;
+};
+
+type RawFriendRequest = {
+  id: number;
+  from_user: RawUser;
+  to_user: RawUser;
+  status: "pending" | "accepted" | "rejected";
+};
+
+function mapUser(u: RawUser): KoconiUser {
+  return {
+    id: toNumber(u.id),
+    displayName: toString(u.display_name),
+    userTag: toString(u.user_tag),
+  };
+}
+
+function mapFriendRequest(r: RawFriendRequest): FriendRequest {
+  return {
+    id: toNumber(r.id),
+    fromUser: mapUser(r.from_user),
+    toUser: mapUser(r.to_user),
+    status: r.status ?? "pending",
   };
 }
 
