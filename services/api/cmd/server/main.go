@@ -47,12 +47,13 @@ func main() {
 
 	createPlacementUC := usecase.NewCreateLandmarkPlacementUseCase(photoRepo, placementRepo)
 	listPlacementsUC := usecase.NewListLandmarkPlacementsByBoundsUseCase(placementRepo)
+	listByTagUC := usecase.NewListPlacementsByUserTagUseCase(placementRepo)
 
 	// CreatePhotoUseCase: aiClient を DI（非同期ジョブ起動のみ）
 	createPhotoUC := usecase.NewCreatePhotoUseCase(photoRepo, aiClient)
 
 	photoHandler := handler.NewPhotoHandler(createPhotoUC)
-	placementHandler := handler.NewPlacementHandler(createPlacementUC, listPlacementsUC)
+	placementHandler := handler.NewPlacementHandler(createPlacementUC, listPlacementsUC, listByTagUC)
 
 	matchPhotoUC := usecase.NewMatchPhotoUseCase(photoRepo, aiClient)
 	photoMatchHandler := handler.NewPhotoMatchHandler(matchPhotoUC)
@@ -60,7 +61,30 @@ func main() {
 	get3DStatusUC := usecase.NewGetPhoto3DStatusUseCase(photoRepo, placementRepo, aiClient)
 	photo3DStatusHandler := handler.NewPhoto3DStatusHandler(get3DStatusUC)
 
-	r := apphttp.NewRouter(memoryHandler, photoHandler, placementHandler, photoMatchHandler, photo3DStatusHandler)
+	statsRepo := repository.NewStatsRepository(pool)
+	statsUC := usecase.NewGetStatsUseCase(statsRepo)
+	statsHandler := handler.NewStatsHandler(statsUC)
+
+	userRepo := repository.NewUserRepository(pool)
+	friendRepo := repository.NewFriendRequestRepository(pool)
+	registerUserUC := usecase.NewRegisterUserUseCase(userRepo)
+	searchUserUC := usecase.NewSearchUserUseCase(userRepo)
+	sendFriendReqUC := usecase.NewSendFriendRequestUseCase(userRepo, friendRepo)
+	listFriendsUC := usecase.NewListFriendsUseCase(userRepo, friendRepo)
+	listIncomingUC := usecase.NewListIncomingRequestsUseCase(userRepo, friendRepo)
+	respondFriendReqUC := usecase.NewRespondFriendRequestUseCase(userRepo, friendRepo)
+	userHandler := handler.NewUserHandler(registerUserUC, searchUserUC)
+	friendHandler := handler.NewFriendHandler(sendFriendReqUC, listFriendsUC, listIncomingUC, respondFriendReqUC)
+
+	sharedMapRepo := repository.NewSharedMapRepository(pool)
+	createSharedMapUC := usecase.NewCreateSharedMapUseCase(userRepo, sharedMapRepo)
+	listSharedMapsUC := usecase.NewListSharedMapsUseCase(userRepo, sharedMapRepo)
+	addMemberUC := usecase.NewAddSharedMapMemberUseCase(userRepo, sharedMapRepo)
+	addPlacementUC := usecase.NewAddSharedMapPlacementUseCase(userRepo, sharedMapRepo)
+	listSharedMapPlacementsUC := usecase.NewListSharedMapPlacementsUseCase(userRepo, sharedMapRepo)
+	sharedMapHandler := handler.NewSharedMapHandler(createSharedMapUC, listSharedMapsUC, addMemberUC, addPlacementUC, listSharedMapPlacementsUC)
+
+	r := apphttp.NewRouter(memoryHandler, photoHandler, placementHandler, photoMatchHandler, photo3DStatusHandler, statsHandler, userHandler, friendHandler, sharedMapHandler)
 
 	srv := &http.Server{
 		Addr:              ":3000",

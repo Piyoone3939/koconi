@@ -9,15 +9,17 @@ import (
 )
 
 type PlacementHandler struct {
-	createUC *usecase.CreateLandmarkPlacementUseCase
-	listUC   *usecase.ListLandmarkPlacementsByBoundsUseCase
+	createUC      *usecase.CreateLandmarkPlacementUseCase
+	listUC        *usecase.ListLandmarkPlacementsByBoundsUseCase
+	listByTagUC   *usecase.ListPlacementsByUserTagUseCase
 }
 
 func NewPlacementHandler(
 	c *usecase.CreateLandmarkPlacementUseCase,
 	l *usecase.ListLandmarkPlacementsByBoundsUseCase,
+	lt *usecase.ListPlacementsByUserTagUseCase,
 ) *PlacementHandler {
-	return &PlacementHandler{createUC: c, listUC: l}
+	return &PlacementHandler{createUC: c, listUC: l, listByTagUC: lt}
 }
 
 type createPlacementRequest struct {
@@ -60,6 +62,25 @@ func (h *PlacementHandler) CreatePlacement(w http.ResponseWriter, r *http.Reques
 func (h *PlacementHandler) ListPlacements(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
+	// user_tag が指定された場合はユーザー別フィルタ
+	if userTag := q.Get("user_tag"); userTag != "" {
+		limit := 200
+		if s := q.Get("limit"); s != "" {
+			v, e := strconv.Atoi(s)
+			if e == nil {
+				limit = v
+			}
+		}
+		ps, err := h.listByTagUC.Execute(r.Context(), userTag, limit)
+		if err != nil {
+			writeInternalError(w, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "placements": ps})
+		return
+	}
+
+	// バウンドベース（従来）
 	minLat, err := strconv.ParseFloat(q.Get("min_lat"), 64)
 	if err != nil {
 		writeBadRequest(w, "invalid min_lat")

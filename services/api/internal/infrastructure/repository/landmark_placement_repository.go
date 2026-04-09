@@ -98,6 +98,45 @@ func (r *PgLandmarkPlacementRepository) ListByBounds(
 	return out, rows.Err()
 }
 
+func (r *PgLandmarkPlacementRepository) ListByUserTag(ctx context.Context, userTag string, limit int) ([]domain.LandmarkPlacement, error) {
+	q := `
+		SELECT id, photo_id, asset_id, lat, lng, scale, rotation_json, match_score, model_url, created_at
+		FROM (
+		    SELECT DISTINCT ON (lp.photo_id)
+		        lp.id, lp.photo_id, lp.asset_id, lp.lat, lp.lng, lp.scale, lp.rotation_json, lp.match_score, lp.model_url, lp.created_at
+		    FROM landmark_placements lp
+		    JOIN photos p ON p.id = lp.photo_id
+		    JOIN users u ON u.device_id = p.device_id
+		    WHERE u.user_tag = $1
+		    ORDER BY lp.photo_id, lp.model_url DESC, lp.created_at DESC
+		) sub
+		ORDER BY created_at DESC
+		LIMIT $2
+	`
+	rows, err := r.pool.Query(ctx, q, userTag, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]domain.LandmarkPlacement, 0, limit)
+	for rows.Next() {
+		var lp domain.LandmarkPlacement
+		var rawRotation []byte
+		if err := rows.Scan(
+			&lp.ID, &lp.PhotoID, &lp.AssetID, &lp.Lat, &lp.Lng,
+			&lp.Scale, &rawRotation, &lp.MatchScore, &lp.ModelURL, &lp.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(rawRotation, &lp.Rotation); err != nil {
+			return nil, err
+		}
+		out = append(out, lp)
+	}
+	return out, rows.Err()
+}
+
 func (r *PgLandmarkPlacementRepository) FindByPhotoIDWithModel(ctx context.Context, photoID int64) (*domain.LandmarkPlacement, error) {
 	q := `
 		SELECT id, photo_id, asset_id, lat, lng, scale, rotation_json, match_score, model_url, created_at

@@ -74,10 +74,61 @@ export type CreatePlacementCommand = {
   modelUrl?: string;
 };
 
+export type AppStats = {
+  photoCount: number;
+  placementCount: number;
+};
+
+export type KoconiUser = {
+  id: number;
+  displayName: string;
+  userTag: string;
+};
+
+export type FriendRequest = {
+  id: number;
+  fromUser: KoconiUser;
+  toUser: KoconiUser;
+  status: "pending" | "accepted" | "rejected";
+};
+
+export type RegisterUserCommand = {
+  deviceId: string;
+};
+
+export type SendFriendRequestCommand = {
+  deviceId: string;
+  toTag: string;
+};
+
 export type ListPlacementsByBoundsQuery = {
   minLat: number;
   maxLat: number;
   minLng: number;
   maxLng: number;
   limit?: number;
+};
+
+export type SharedMap = {
+  id: number;
+  name: string;
+  ownerUserId: number;
+  createdAt: string;
+};
+
+export type CreateSharedMapCommand = {
+  deviceId: string;
+  name: string;
+};
+
+export type AddSharedMapMemberCommand = {
+  deviceId: string;
+  mapId: number;
+  memberTag: string;
+};
+
+export type AddSharedMapPlacementCommand = {
+  deviceId: string;
+  mapId: number;
+  placementId: number;
 };

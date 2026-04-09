@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import * as Location from "expo-location";
 
 import MapboxGL from "@rnmapbox/maps";
 import { listPlacements } from "../../application/usecases/photo-placement-flow";
 import type { KoconiGateway } from "../../domain/ports/koconi-gateway";
+import type { KoconiUser, SharedMap } from "../../domain/models/koconi";
+import type { MapMode } from "../../../App";
 
 MapboxGL.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
 
@@ -25,16 +27,27 @@ export function MapScreen({
   gateway,
   refreshSignal,
   onMarkerPhotoPress,
+  mapMode,
+  onMapModeChange,
+  deviceId,
+  friends,
+  sharedMaps,
 }: {
   gateway: KoconiGateway;
   refreshSignal?: number;
   onMarkerPhotoPress?: (photoId: number) => void;
+  mapMode: MapMode;
+  onMapModeChange: (mode: MapMode) => void;
+  deviceId: string;
+  friends: KoconiUser[];
+  sharedMaps: SharedMap[];
 }) {
   const cameraRef = useRef<MapboxGL.Camera>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<PlacementItem[]>([]);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
+  const [selectorOpen, setSelectorOpen] = useState(false);
 
   // 現在地追跡
   useEffect(() => {
@@ -59,13 +72,14 @@ export function MapScreen({
     setError(null);
 
     try {
-      const placements = await listPlacements(gateway, {
-        minLat: -90,
-        maxLat: 90,
-        minLng: -180,
-        maxLng: 180,
-        limit: 30,
-      });
+      let placements: Awaited<ReturnType<typeof listPlacements>>;
+      if (mapMode.type === "self") {
+        placements = await listPlacements(gateway, { minLat: -90, maxLat: 90, minLng: -180, maxLng: 180, limit: 30 });
+      } else if (mapMode.type === "friend") {
+        placements = await gateway.listPlacementsByUserTag(mapMode.userTag, 200);
+      } else {
+        placements = await gateway.listSharedMapPlacements(deviceId, mapMode.mapId);
+      }
 
       const nextItems: PlacementItem[] = placements.map((p) => ({
         id: p.id,
@@ -96,7 +110,7 @@ export function MapScreen({
     } finally {
       setLoading(false);
     }
-  }, [gateway]);
+  }, [gateway, mapMode, deviceId]);
 
   const handleFlyToUser = useCallback(() => {
     if (!userLocation) return;
@@ -231,6 +245,49 @@ export function MapScreen({
           </MapboxGL.MarkerView>
         ))}
       </MapboxGL.MapView>
+
+      {/* マップモードセレクタ */}
+      <View style={styles.selectorArea}>
+        <Pressable
+          style={({ pressed }) => [styles.selectorPill, pressed && { opacity: 0.8 }]}
+          onPress={() => setSelectorOpen((v) => !v)}
+        >
+          <Text style={styles.selectorPillText} numberOfLines={1}>
+            {mapMode.type === "self" ? "自分のマップ" : mapMode.type === "friend" ? mapMode.displayName : mapMode.name}
+          </Text>
+          <Text style={styles.selectorChevron}>{selectorOpen ? "▲" : "▼"}</Text>
+        </Pressable>
+        {selectorOpen ? (
+          <ScrollView style={styles.selectorDropdown} showsVerticalScrollIndicator={false}>
+            <Pressable style={[styles.selectorItem, mapMode.type === "self" && styles.selectorItemActive]}
+              onPress={() => { onMapModeChange({ type: "self" }); setSelectorOpen(false); }}>
+              <Text style={[styles.selectorItemText, mapMode.type === "self" && styles.selectorItemTextActive]}>自分のマップ</Text>
+            </Pressable>
+            {friends.length > 0 ? (
+              <>
+                <Text style={styles.selectorGroupLabel}>フレンド</Text>
+                {friends.map((f) => (
+                  <Pressable key={f.id} style={[styles.selectorItem, mapMode.type === "friend" && mapMode.userTag === f.userTag && styles.selectorItemActive]}
+                    onPress={() => { onMapModeChange({ type: "friend", userTag: f.userTag, displayName: f.displayName }); setSelectorOpen(false); }}>
+                    <Text style={[styles.selectorItemText, mapMode.type === "friend" && mapMode.userTag === f.userTag && styles.selectorItemTextActive]}>{f.displayName}</Text>
+                  </Pressable>
+                ))}
+              </>
+            ) : null}
+            {sharedMaps.length > 0 ? (
+              <>
+                <Text style={styles.selectorGroupLabel}>共有マップ</Text>
+                {sharedMaps.map((m) => (
+                  <Pressable key={m.id} style={[styles.selectorItem, mapMode.type === "shared" && mapMode.mapId === m.id && styles.selectorItemActive]}
+                    onPress={() => { onMapModeChange({ type: "shared", mapId: m.id, name: m.name }); setSelectorOpen(false); }}>
+                    <Text style={[styles.selectorItemText, mapMode.type === "shared" && mapMode.mapId === m.id && styles.selectorItemTextActive]}>{m.name}</Text>
+                  </Pressable>
+                ))}
+              </>
+            ) : null}
+          </ScrollView>
+        ) : null}
+      </View>
 
       {/* 右側ボタン列 */}
       <View style={styles.rightButtons}>
@@ -425,4 +482,27 @@ const styles = StyleSheet.create({
   },
   errorText: { color: "#FF6B6B", fontSize: 13 },
   emptyText: { color: "rgba(255,255,255,0.5)", fontSize: 13 },
+
+  selectorArea: { position: "absolute", top: 14, left: 14, right: 80, zIndex: 10 },
+  selectorPill: {
+    flexDirection: "row", alignItems: "center", alignSelf: "flex-start",
+    backgroundColor: "rgba(20,20,20,0.88)", borderRadius: 24,
+    paddingHorizontal: 16, paddingVertical: 10, gap: 8,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.14)", maxWidth: "100%",
+  },
+  selectorPillText: { color: "#F2C94C", fontSize: 13, fontWeight: "700", flexShrink: 1 },
+  selectorChevron: { color: "rgba(255,255,255,0.5)", fontSize: 10 },
+  selectorDropdown: {
+    marginTop: 6, backgroundColor: "rgba(18,18,18,0.96)", borderRadius: 16,
+    borderWidth: 1, borderColor: "rgba(255,255,255,0.10)", maxHeight: 260,
+  },
+  selectorGroupLabel: {
+    color: "rgba(255,255,255,0.35)", fontSize: 10, fontWeight: "700",
+    letterSpacing: 0.8, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 4,
+    textTransform: "uppercase",
+  },
+  selectorItem: { paddingHorizontal: 16, paddingVertical: 12 },
+  selectorItemActive: { backgroundColor: "rgba(242,201,76,0.12)" },
+  selectorItemText: { color: "rgba(255,255,255,0.85)", fontSize: 14, fontWeight: "600" },
+  selectorItemTextActive: { color: "#F2C94C" },
 });

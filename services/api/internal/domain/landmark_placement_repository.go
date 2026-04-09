@@ -20,6 +20,9 @@ type LandmarkPlacementRepository interface {
 		limit int,
 	) ([]LandmarkPlacement, error)
 
+	// ユーザータグでフィルタ（自分・フレンドのマップ用）
+	ListByUserTag(ctx context.Context, userTag string, limit int) ([]LandmarkPlacement, error)
+
 	// 3Dモデルありのplacementを取得（重複作成防止用）
 	FindByPhotoIDWithModel(ctx context.Context, photoID int64) (*LandmarkPlacement, error)
 }

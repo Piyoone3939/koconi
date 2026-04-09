@@ -1,13 +1,22 @@
 import type { components } from "../../types/api.generated";
 import type {
+  AddSharedMapMemberCommand,
+  AddSharedMapPlacementCommand,
   AIMatchResult,
+  AppStats,
   CreatePhotoCommand,
   CreatePlacementCommand,
+  CreateSharedMapCommand,
+  FriendRequest,
+  KoconiUser,
   LandmarkPlacement,
   ListPlacementsByBoundsQuery,
   MatchPhotoCommand,
   Photo,
   Photo3DStatus,
+  RegisterUserCommand,
+  SendFriendRequestCommand,
+  SharedMap,
 } from "../../domain/models/koconi";
 import type { KoconiGateway } from "../../domain/ports/koconi-gateway";
 import { HttpClient } from "./http-client";
@@ -170,6 +179,130 @@ export class KoconiGatewayHttp implements KoconiGateway {
     };
   }
 
+  async getStats(): Promise<AppStats> {
+    const response = await this.httpClient.request<{
+      ok: boolean;
+      photo_count: number;
+      placement_count: number;
+    }>("/v1/stats");
+
+    return {
+      photoCount: response.photo_count ?? 0,
+      placementCount: response.placement_count ?? 0,
+    };
+  }
+
+  async registerUser(command: RegisterUserCommand): Promise<KoconiUser> {
+    const response = await this.httpClient.request<{ ok: boolean; user: RawUser }>("/v1/users/register", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: command.deviceId }),
+    });
+    return mapUser(response.user);
+  }
+
+  async searchUser(tag: string): Promise<KoconiUser | null> {
+    try {
+      const response = await this.httpClient.request<{ ok: boolean; user: RawUser }>("/v1/users/search", {
+        query: { tag },
+      });
+      return mapUser(response.user);
+    } catch {
+      return null;
+    }
+  }
+
+  async sendFriendRequest(command: SendFriendRequestCommand): Promise<FriendRequest> {
+    const response = await this.httpClient.request<{ ok: boolean; request: RawFriendRequest }>("/v1/friends/requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: command.deviceId, to_tag: command.toTag }),
+    });
+    return mapFriendRequest(response.request);
+  }
+
+  async listFriends(deviceId: string): Promise<KoconiUser[]> {
+    const response = await this.httpClient.request<{ ok: boolean; friends: RawUser[] }>("/v1/friends", {
+      query: { device_id: deviceId },
+    });
+    return (response.friends ?? []).map(mapUser);
+  }
+
+  async listIncomingRequests(deviceId: string): Promise<FriendRequest[]> {
+    const response = await this.httpClient.request<{ ok: boolean; requests: RawFriendRequest[] }>(
+      "/v1/friends/requests/incoming",
+      { query: { device_id: deviceId } },
+    );
+    return (response.requests ?? []).map(mapFriendRequest);
+  }
+
+  async acceptFriendRequest(deviceId: string, requestId: number): Promise<void> {
+    await this.httpClient.request<{ ok: boolean }>(`/v1/friends/requests/${requestId}/accept`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: deviceId }),
+    });
+  }
+
+  async rejectFriendRequest(deviceId: string, requestId: number): Promise<void> {
+    await this.httpClient.request<{ ok: boolean }>(`/v1/friends/requests/${requestId}/reject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: deviceId }),
+    });
+  }
+
+  async listPlacementsByUserTag(userTag: string, limit = 200): Promise<LandmarkPlacement[]> {
+    const response = await this.httpClient.request<ListPlacementsResponse>("/v1/placements", {
+      query: { user_tag: userTag, limit },
+    });
+    const placements = response.placements ?? response.data?.placements;
+    if (!Array.isArray(placements)) return [];
+    return placements.map(mapPlacement);
+  }
+
+  async createSharedMap(command: CreateSharedMapCommand): Promise<SharedMap> {
+    const response = await this.httpClient.request<{ ok: boolean; map: RawSharedMap }>("/v1/shared-maps", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: command.deviceId, name: command.name }),
+    });
+    return mapSharedMap(response.map);
+  }
+
+  async listSharedMaps(deviceId: string): Promise<SharedMap[]> {
+    const response = await this.httpClient.request<{ ok: boolean; maps: RawSharedMap[] }>("/v1/shared-maps", {
+      query: { device_id: deviceId },
+    });
+    return (response.maps ?? []).map(mapSharedMap);
+  }
+
+  async addSharedMapMember(command: AddSharedMapMemberCommand): Promise<void> {
+    await this.httpClient.request<{ ok: boolean }>(`/v1/shared-maps/${command.mapId}/members`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: command.deviceId, member_tag: command.memberTag }),
+    });
+  }
+
+  async addSharedMapPlacement(command: AddSharedMapPlacementCommand): Promise<void> {
+    await this.httpClient.request<{ ok: boolean }>(`/v1/shared-maps/${command.mapId}/placements`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: command.deviceId, placement_id: command.placementId }),
+    });
+  }
+
+  async listSharedMapPlacements(deviceId: string, mapId: number): Promise<LandmarkPlacement[]> {
+    const response = await this.httpClient.request<ListPlacementsResponse>(
+      `/v1/shared-maps/${mapId}/placements`,
+      { query: { device_id: deviceId } },
+    );
+    const placements = response.placements ?? response.data?.placements;
+    if (!Array.isArray(placements)) return [];
+    return placements.map(mapPlacement);
+  }
+
   async listPlacementsByBounds(query: ListPlacementsByBoundsQuery): Promise<LandmarkPlacement[]> {
     const response = await this.httpClient.request<ListPlacementsResponse>("/v1/placements", {
       query: {
@@ -220,6 +353,36 @@ function mapPlacement(placement: components["schemas"]["LandmarkPlacement"]): La
   };
 }
 
+type RawUser = {
+  id: number;
+  display_name: string;
+  user_tag: string;
+};
+
+type RawFriendRequest = {
+  id: number;
+  from_user: RawUser;
+  to_user: RawUser;
+  status: "pending" | "accepted" | "rejected";
+};
+
+function mapUser(u: RawUser): KoconiUser {
+  return {
+    id: toNumber(u.id),
+    displayName: toString(u.display_name),
+    userTag: toString(u.user_tag),
+  };
+}
+
+function mapFriendRequest(r: RawFriendRequest): FriendRequest {
+  return {
+    id: toNumber(r.id),
+    fromUser: mapUser(r.from_user),
+    toUser: mapUser(r.to_user),
+    status: r.status ?? "pending",
+  };
+}
+
 function toRotation(values: number[]): [number, number, number] {
   return [values[0] ?? 0, values[1] ?? 0, values[2] ?? 0];
 }
@@ -245,4 +408,20 @@ function toString(value: unknown): string {
     return "";
   }
   return String(value);
+}
+
+type RawSharedMap = {
+  id: number;
+  name: string;
+  owner_user_id: number;
+  created_at: string;
+};
+
+function mapSharedMap(m: RawSharedMap): SharedMap {
+  return {
+    id: toNumber(m.id),
+    name: toString(m.name),
+    ownerUserId: toNumber(m.owner_user_id),
+    createdAt: toString(m.created_at),
+  };
 }

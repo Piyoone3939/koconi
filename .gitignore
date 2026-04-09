@@ -57,3 +57,5 @@ services/api/server.exe
 
 # keep template env files
 !.env.example
+.aidesigner/*
+!.aidesigner/.gitkeep
