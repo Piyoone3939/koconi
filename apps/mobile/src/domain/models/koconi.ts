@@ -108,3 +108,27 @@ export type ListPlacementsByBoundsQuery = {
   maxLng: number;
   limit?: number;
 };
+
+export type SharedMap = {
+  id: number;
+  name: string;
+  ownerUserId: number;
+  createdAt: string;
+};
+
+export type CreateSharedMapCommand = {
+  deviceId: string;
+  name: string;
+};
+
+export type AddSharedMapMemberCommand = {
+  deviceId: string;
+  mapId: number;
+  memberTag: string;
+};
+
+export type AddSharedMapPlacementCommand = {
+  deviceId: string;
+  mapId: number;
+  placementId: number;
+};

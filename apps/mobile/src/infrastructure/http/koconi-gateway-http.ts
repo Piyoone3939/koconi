@@ -1,9 +1,12 @@
 import type { components } from "../../types/api.generated";
 import type {
+  AddSharedMapMemberCommand,
+  AddSharedMapPlacementCommand,
   AIMatchResult,
   AppStats,
   CreatePhotoCommand,
   CreatePlacementCommand,
+  CreateSharedMapCommand,
   FriendRequest,
   KoconiUser,
   LandmarkPlacement,
@@ -13,6 +16,7 @@ import type {
   Photo3DStatus,
   RegisterUserCommand,
   SendFriendRequestCommand,
+  SharedMap,
 } from "../../domain/models/koconi";
 import type { KoconiGateway } from "../../domain/ports/koconi-gateway";
 import { HttpClient } from "./http-client";
@@ -248,6 +252,57 @@ export class KoconiGatewayHttp implements KoconiGateway {
     });
   }
 
+  async listPlacementsByUserTag(userTag: string, limit = 200): Promise<LandmarkPlacement[]> {
+    const response = await this.httpClient.request<ListPlacementsResponse>("/v1/placements", {
+      query: { user_tag: userTag, limit },
+    });
+    const placements = response.placements ?? response.data?.placements;
+    if (!Array.isArray(placements)) return [];
+    return placements.map(mapPlacement);
+  }
+
+  async createSharedMap(command: CreateSharedMapCommand): Promise<SharedMap> {
+    const response = await this.httpClient.request<{ ok: boolean; map: RawSharedMap }>("/v1/shared-maps", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: command.deviceId, name: command.name }),
+    });
+    return mapSharedMap(response.map);
+  }
+
+  async listSharedMaps(deviceId: string): Promise<SharedMap[]> {
+    const response = await this.httpClient.request<{ ok: boolean; maps: RawSharedMap[] }>("/v1/shared-maps", {
+      query: { device_id: deviceId },
+    });
+    return (response.maps ?? []).map(mapSharedMap);
+  }
+
+  async addSharedMapMember(command: AddSharedMapMemberCommand): Promise<void> {
+    await this.httpClient.request<{ ok: boolean }>(`/v1/shared-maps/${command.mapId}/members`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: command.deviceId, member_tag: command.memberTag }),
+    });
+  }
+
+  async addSharedMapPlacement(command: AddSharedMapPlacementCommand): Promise<void> {
+    await this.httpClient.request<{ ok: boolean }>(`/v1/shared-maps/${command.mapId}/placements`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: command.deviceId, placement_id: command.placementId }),
+    });
+  }
+
+  async listSharedMapPlacements(deviceId: string, mapId: number): Promise<LandmarkPlacement[]> {
+    const response = await this.httpClient.request<ListPlacementsResponse>(
+      `/v1/shared-maps/${mapId}/placements`,
+      { query: { device_id: deviceId } },
+    );
+    const placements = response.placements ?? response.data?.placements;
+    if (!Array.isArray(placements)) return [];
+    return placements.map(mapPlacement);
+  }
+
   async listPlacementsByBounds(query: ListPlacementsByBoundsQuery): Promise<LandmarkPlacement[]> {
     const response = await this.httpClient.request<ListPlacementsResponse>("/v1/placements", {
       query: {
@@ -353,4 +408,20 @@ function toString(value: unknown): string {
     return "";
   }
   return String(value);
+}
+
+type RawSharedMap = {
+  id: number;
+  name: string;
+  owner_user_id: number;
+  created_at: string;
+};
+
+function mapSharedMap(m: RawSharedMap): SharedMap {
+  return {
+    id: toNumber(m.id),
+    name: toString(m.name),
+    ownerUserId: toNumber(m.owner_user_id),
+    createdAt: toString(m.created_at),
+  };
 }

@@ -47,12 +47,13 @@ func main() {
 
 	createPlacementUC := usecase.NewCreateLandmarkPlacementUseCase(photoRepo, placementRepo)
 	listPlacementsUC := usecase.NewListLandmarkPlacementsByBoundsUseCase(placementRepo)
+	listByTagUC := usecase.NewListPlacementsByUserTagUseCase(placementRepo)
 
 	// CreatePhotoUseCase: aiClient を DI（非同期ジョブ起動のみ）
 	createPhotoUC := usecase.NewCreatePhotoUseCase(photoRepo, aiClient)
 
 	photoHandler := handler.NewPhotoHandler(createPhotoUC)
-	placementHandler := handler.NewPlacementHandler(createPlacementUC, listPlacementsUC)
+	placementHandler := handler.NewPlacementHandler(createPlacementUC, listPlacementsUC, listByTagUC)
 
 	matchPhotoUC := usecase.NewMatchPhotoUseCase(photoRepo, aiClient)
 	photoMatchHandler := handler.NewPhotoMatchHandler(matchPhotoUC)
@@ -75,7 +76,15 @@ func main() {
 	userHandler := handler.NewUserHandler(registerUserUC, searchUserUC)
 	friendHandler := handler.NewFriendHandler(sendFriendReqUC, listFriendsUC, listIncomingUC, respondFriendReqUC)
 
-	r := apphttp.NewRouter(memoryHandler, photoHandler, placementHandler, photoMatchHandler, photo3DStatusHandler, statsHandler, userHandler, friendHandler)
+	sharedMapRepo := repository.NewSharedMapRepository(pool)
+	createSharedMapUC := usecase.NewCreateSharedMapUseCase(userRepo, sharedMapRepo)
+	listSharedMapsUC := usecase.NewListSharedMapsUseCase(userRepo, sharedMapRepo)
+	addMemberUC := usecase.NewAddSharedMapMemberUseCase(userRepo, sharedMapRepo)
+	addPlacementUC := usecase.NewAddSharedMapPlacementUseCase(userRepo, sharedMapRepo)
+	listSharedMapPlacementsUC := usecase.NewListSharedMapPlacementsUseCase(userRepo, sharedMapRepo)
+	sharedMapHandler := handler.NewSharedMapHandler(createSharedMapUC, listSharedMapsUC, addMemberUC, addPlacementUC, listSharedMapPlacementsUC)
+
+	r := apphttp.NewRouter(memoryHandler, photoHandler, placementHandler, photoMatchHandler, photo3DStatusHandler, statsHandler, userHandler, friendHandler, sharedMapHandler)
 
 	srv := &http.Server{
 		Addr:              ":3000",

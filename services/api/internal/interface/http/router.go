@@ -17,6 +17,7 @@ func NewRouter(
 	statsHandler *handler.StatsHandler,
 	userHandler *handler.UserHandler,
 	friendHandler *handler.FriendHandler,
+	sharedMapHandler *handler.SharedMapHandler,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -47,6 +48,12 @@ func NewRouter(
 		v1.Get("/friends/requests/incoming", friendHandler.ListIncoming)
 		v1.Post("/friends/requests/{requestID}/accept", friendHandler.AcceptRequest)
 		v1.Post("/friends/requests/{requestID}/reject", friendHandler.RejectRequest)
+
+		v1.Post("/shared-maps", sharedMapHandler.Create)
+		v1.Get("/shared-maps", sharedMapHandler.List)
+		v1.Post("/shared-maps/{mapID}/members", sharedMapHandler.AddMember)
+		v1.Post("/shared-maps/{mapID}/placements", sharedMapHandler.AddPlacement)
+		v1.Get("/shared-maps/{mapID}/placements", sharedMapHandler.ListPlacements)
 	})
 
 	return r

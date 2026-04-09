@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -10,15 +10,28 @@ import {
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 import type { KoconiGateway } from "../../domain/ports/koconi-gateway";
-import type { FriendRequest, KoconiUser } from "../../domain/models/koconi";
+import type { FriendRequest, KoconiUser, SharedMap } from "../../domain/models/koconi";
+import { useEffect } from "react";
 
 type Props = {
   gateway: KoconiGateway;
   deviceId: string;
   currentUser: KoconiUser | null;
+  sharedMaps: SharedMap[];
+  onViewFriendMap: (friend: KoconiUser) => void;
+  onViewSharedMap: (map: SharedMap) => void;
+  onSharedMapCreated: (map: SharedMap) => void;
 };
 
-export function FriendsScreen({ gateway, deviceId, currentUser }: Props) {
+export function FriendsScreen({
+  gateway,
+  deviceId,
+  currentUser,
+  sharedMaps,
+  onViewFriendMap,
+  onViewSharedMap,
+  onSharedMapCreated,
+}: Props) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResult, setSearchResult] = useState<KoconiUser | null | "not_found">(null);
   const [searching, setSearching] = useState(false);
@@ -26,6 +39,9 @@ export function FriendsScreen({ gateway, deviceId, currentUser }: Props) {
   const [incoming, setIncoming] = useState<FriendRequest[]>([]);
   const [copied, setCopied] = useState(false);
   const [sendingTo, setSendingTo] = useState<string | null>(null);
+  const [newMapName, setNewMapName] = useState("");
+  const [creatingMap, setCreatingMap] = useState(false);
+  const [showNewMapInput, setShowNewMapInput] = useState(false);
 
   const userTag = currentUser?.userTag ?? "@koconi_...";
 
@@ -103,6 +119,22 @@ export function FriendsScreen({ gateway, deviceId, currentUser }: Props) {
       await loadIncoming();
     } catch {
       // ignore
+    }
+  };
+
+  const handleCreateSharedMap = async () => {
+    const name = newMapName.trim();
+    if (!name || !deviceId) return;
+    setCreatingMap(true);
+    try {
+      const map = await gateway.createSharedMap({ deviceId, name });
+      onSharedMapCreated(map);
+      setNewMapName("");
+      setShowNewMapInput(false);
+    } catch {
+      // ignore
+    } finally {
+      setCreatingMap(false);
     }
   };
 
@@ -234,6 +266,74 @@ export function FriendsScreen({ gateway, deviceId, currentUser }: Props) {
                   <Text style={styles.userName}>{u.displayName}</Text>
                   <Text style={styles.userTagText}>{u.userTag}</Text>
                 </View>
+                <Pressable
+                  style={({ pressed }) => [styles.mapViewBtn, pressed && { opacity: 0.7 }]}
+                  onPress={() => onViewFriendMap(u)}
+                >
+                  <Text style={styles.mapViewBtnText}>マップを見る</Text>
+                </Pressable>
+              </View>
+            ))
+          )}
+        </View>
+
+        {/* 共有マップ */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>共有マップ ({sharedMaps.length})</Text>
+            <Pressable
+              style={({ pressed }) => [styles.newMapToggleBtn, pressed && { opacity: 0.7 }]}
+              onPress={() => setShowNewMapInput((v) => !v)}
+            >
+              <Text style={styles.newMapToggleBtnText}>{showNewMapInput ? "キャンセル" : "+ 新規作成"}</Text>
+            </Pressable>
+          </View>
+
+          {showNewMapInput && (
+            <View style={styles.newMapRow}>
+              <TextInput
+                style={styles.newMapInput}
+                placeholder="マップ名"
+                placeholderTextColor="#9A8B78"
+                value={newMapName}
+                onChangeText={setNewMapName}
+                returnKeyType="done"
+                onSubmitEditing={handleCreateSharedMap}
+              />
+              <Pressable
+                style={({ pressed }) => [styles.createMapBtn, pressed && { opacity: 0.8 }]}
+                onPress={handleCreateSharedMap}
+                disabled={creatingMap || !newMapName.trim()}
+              >
+                {creatingMap ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.createMapBtnText}>作成</Text>
+                )}
+              </Pressable>
+            </View>
+          )}
+
+          {sharedMaps.length === 0 && !showNewMapInput ? (
+            <View style={styles.emptyFriends}>
+              <Text style={styles.emptyFriendsText}>共有マップがありません</Text>
+              <Text style={styles.emptyFriendsHint}>フレンドと思い出を共有しよう</Text>
+            </View>
+          ) : (
+            sharedMaps.map((m) => (
+              <View key={m.id} style={styles.friendCard}>
+                <View style={[styles.userAvatar, styles.mapAvatar]}>
+                  <Text style={styles.userAvatarText}>🗺</Text>
+                </View>
+                <View style={styles.userInfo}>
+                  <Text style={styles.userName}>{m.name}</Text>
+                </View>
+                <Pressable
+                  style={({ pressed }) => [styles.mapViewBtn, pressed && { opacity: 0.7 }]}
+                  onPress={() => onViewSharedMap(m)}
+                >
+                  <Text style={styles.mapViewBtnText}>開く</Text>
+                </Pressable>
               </View>
             ))
           )}
@@ -317,6 +417,7 @@ const styles = StyleSheet.create({
 
   // セクション
   section: { gap: 10 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   sectionTitle: {
     fontSize: 14,
     fontWeight: "700",
@@ -333,6 +434,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  mapAvatar: { backgroundColor: "#DDD3BC" },
   userAvatarText: { color: "#FFFFFF", fontWeight: "700", fontSize: 16 },
   userInfo: { flex: 1, gap: 2 },
   userName: { fontSize: 14, fontWeight: "700", color: "#2A1F12" },
@@ -387,6 +489,44 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#DDD3BC",
   },
+  mapViewBtn: {
+    backgroundColor: "#2A1F12",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  mapViewBtnText: { color: "#F2C94C", fontWeight: "700", fontSize: 12 },
+
+  // 新規マップ
+  newMapToggleBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: "#E86F00",
+    borderRadius: 20,
+  },
+  newMapToggleBtnText: { color: "#FFFFFF", fontWeight: "700", fontSize: 12 },
+  newMapRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F0EBD8",
+    borderRadius: 14,
+    paddingLeft: 14,
+    paddingRight: 6,
+    paddingVertical: 6,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: "#DDD3BC",
+  },
+  newMapInput: { flex: 1, fontSize: 14, color: "#2A1F12", paddingVertical: 6 },
+  createMapBtn: {
+    backgroundColor: "#E86F00",
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    minWidth: 50,
+    alignItems: "center",
+  },
+  createMapBtnText: { color: "#FFFFFF", fontWeight: "700", fontSize: 13 },
 
   // 空
   emptyFriends: { alignItems: "center", paddingVertical: 20, gap: 6 },
