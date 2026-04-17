@@ -18,12 +18,15 @@ func NewRouter(
 	userHandler *handler.UserHandler,
 	friendHandler *handler.FriendHandler,
 	sharedMapHandler *handler.SharedMapHandler,
+	tripHandler *handler.TripHandler,
+	commentHandler *handler.CommentHandler,
+	searchHandler *handler.SearchHandler,
 ) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"*"},
 		AllowCredentials: false,
 	}))
@@ -42,6 +45,8 @@ func NewRouter(
 
 		v1.Post("/users/register", userHandler.Register)
 		v1.Get("/users/search", userHandler.Search)
+		v1.Get("/users/{userID}", userHandler.GetUser)
+		v1.Put("/users/{userID}", userHandler.UpdateUser)
 
 		v1.Post("/friends/requests", friendHandler.SendRequest)
 		v1.Get("/friends", friendHandler.ListFriends)
@@ -54,6 +59,16 @@ func NewRouter(
 		v1.Post("/shared-maps/{mapID}/members", sharedMapHandler.AddMember)
 		v1.Post("/shared-maps/{mapID}/placements", sharedMapHandler.AddPlacement)
 		v1.Get("/shared-maps/{mapID}/placements", sharedMapHandler.ListPlacements)
+
+		v1.Post("/trips", tripHandler.CreateTrip)
+		v1.Get("/trips", tripHandler.ListTrips)
+		v1.Get("/trips/{tripID}", tripHandler.GetTrip)
+
+		v1.Post("/comments", commentHandler.CreateComment)
+		v1.Get("/comments", commentHandler.ListComments)
+		v1.Delete("/comments/{commentID}", commentHandler.DeleteComment)
+
+		v1.Get("/search", searchHandler.Search)
 	})
 
 	return r

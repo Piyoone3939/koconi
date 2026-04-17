@@ -22,6 +22,7 @@ type UserRepository interface {
 	FindByDeviceID(ctx context.Context, deviceID string) (User, bool, error)
 	FindByTag(ctx context.Context, tag string) (User, bool, error)
 	FindByID(ctx context.Context, id int64) (User, bool, error)
+	UpdateDisplayName(ctx context.Context, id int64, displayName string) (User, error)
 }
 
 type RegisterUserUseCase struct {

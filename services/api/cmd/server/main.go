@@ -69,11 +69,13 @@ func main() {
 	friendRepo := repository.NewFriendRequestRepository(pool)
 	registerUserUC := usecase.NewRegisterUserUseCase(userRepo)
 	searchUserUC := usecase.NewSearchUserUseCase(userRepo)
+	getUserUC := usecase.NewGetUserUseCase(userRepo)
+	updateUserUC := usecase.NewUpdateUserUseCase(userRepo)
 	sendFriendReqUC := usecase.NewSendFriendRequestUseCase(userRepo, friendRepo)
 	listFriendsUC := usecase.NewListFriendsUseCase(userRepo, friendRepo)
 	listIncomingUC := usecase.NewListIncomingRequestsUseCase(userRepo, friendRepo)
 	respondFriendReqUC := usecase.NewRespondFriendRequestUseCase(userRepo, friendRepo)
-	userHandler := handler.NewUserHandler(registerUserUC, searchUserUC)
+	userHandler := handler.NewUserHandler(registerUserUC, searchUserUC, getUserUC, updateUserUC)
 	friendHandler := handler.NewFriendHandler(sendFriendReqUC, listFriendsUC, listIncomingUC, respondFriendReqUC)
 
 	sharedMapRepo := repository.NewSharedMapRepository(pool)
@@ -84,7 +86,23 @@ func main() {
 	listSharedMapPlacementsUC := usecase.NewListSharedMapPlacementsUseCase(userRepo, sharedMapRepo)
 	sharedMapHandler := handler.NewSharedMapHandler(createSharedMapUC, listSharedMapsUC, addMemberUC, addPlacementUC, listSharedMapPlacementsUC)
 
-	r := apphttp.NewRouter(memoryHandler, photoHandler, placementHandler, photoMatchHandler, photo3DStatusHandler, statsHandler, userHandler, friendHandler, sharedMapHandler)
+	tripRepo := repository.NewTripRepository(pool)
+	createTripUC := usecase.NewCreateTripUseCase(userRepo, tripRepo)
+	getTripUC := usecase.NewGetTripUseCase(userRepo, tripRepo)
+	listTripsUC := usecase.NewListTripsUseCase(userRepo, tripRepo)
+	tripHandler := handler.NewTripHandler(createTripUC, getTripUC, listTripsUC)
+
+	commentRepo := repository.NewCommentRepository(pool)
+	createCommentUC := usecase.NewCreateCommentUseCase(userRepo, commentRepo)
+	listCommentsUC := usecase.NewListCommentsUseCase(commentRepo)
+	deleteCommentUC := usecase.NewDeleteCommentUseCase(userRepo, commentRepo)
+	commentHandler := handler.NewCommentHandler(createCommentUC, listCommentsUC, deleteCommentUC)
+
+	searchRepo := repository.NewSearchRepository(pool)
+	searchUC := usecase.NewSearchUseCase(userRepo, searchRepo)
+	searchHandler := handler.NewSearchHandler(searchUC)
+
+	r := apphttp.NewRouter(memoryHandler, photoHandler, placementHandler, photoMatchHandler, photo3DStatusHandler, statsHandler, userHandler, friendHandler, sharedMapHandler, tripHandler, commentHandler, searchHandler)
 
 	srv := &http.Server{
 		Addr:              ":3000",

@@ -1,14 +1,18 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import {
   ActivityIndicator,
   FlatList,
   Image,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import {
@@ -16,6 +20,7 @@ import {
   createPlacementFromTopCandidate,
 } from "../../application/usecases/photo-placement-flow";
 import type { KoconiGateway } from "../../domain/ports/koconi-gateway";
+import type { Comment, KoconiUser } from "../../domain/models/koconi";
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3000";
 
@@ -41,6 +46,8 @@ export function RecordScreen({
   onPhotoPosted,
   onStartPolling,
   onDeleteItem,
+  deviceId,
+  currentUser,
 }: {
   gateway: KoconiGateway;
   albumItems: AlbumItem[];
@@ -48,6 +55,8 @@ export function RecordScreen({
   onPhotoPosted?: (item: AlbumPhotoInput) => void;
   onStartPolling?: (photoId: number) => void;
   onDeleteItem?: (id: string) => void;
+  deviceId?: string;
+  currentUser?: KoconiUser | null;
 }) {
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -57,6 +66,9 @@ export function RecordScreen({
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tab, setTab] = useState<"record" | "album">("record");
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentInput, setCommentInput] = useState("");
+  const [submittingComment, setSubmittingComment] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -165,6 +177,52 @@ export function RecordScreen({
     () => sortedItems.find((item) => item.id === selectedId) ?? null,
     [sortedItems, selectedId],
   );
+
+  const loadComments = useCallback(async (photoId: number) => {
+    try {
+      const list = await gateway.listComments("photo", photoId);
+      setComments(list);
+    } catch {
+      setComments([]);
+    }
+  }, [gateway]);
+
+  useEffect(() => {
+    if (selectedItem) {
+      setComments([]);
+      setCommentInput("");
+      loadComments(selectedItem.photoId);
+    }
+  }, [selectedItem, loadComments]);
+
+  const handleSubmitComment = async () => {
+    if (!selectedItem || !commentInput.trim() || !deviceId || !currentUser) return;
+    setSubmittingComment(true);
+    try {
+      const comment = await gateway.createComment({
+        deviceId,
+        targetType: "photo",
+        targetId: selectedItem.photoId,
+        body: commentInput.trim(),
+      });
+      setComments((prev) => [...prev, comment]);
+      setCommentInput("");
+    } catch {
+      // 失敗時は何もしない
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: number) => {
+    if (!deviceId) return;
+    try {
+      await gateway.deleteComment({ deviceId, commentId });
+      setComments((prev) => prev.filter((c) => c.id !== commentId));
+    } catch {
+      // 失敗時は何もしない
+    }
+  };
 
   const handleDelete = () => {
     if (!selectedItem) return;
@@ -316,11 +374,12 @@ export function RecordScreen({
       )}
 
       {/* 詳細モーダル */}
-      <Modal visible={!!selectedItem} transparent animationType="fade" onRequestClose={() => setSelectedId(null)}>
-        <Pressable style={styles.backdrop} onPress={() => setSelectedId(null)}>
+      <Modal visible={!!selectedItem} transparent animationType="slide" onRequestClose={() => setSelectedId(null)}>
+        <KeyboardAvoidingView style={styles.backdropFull} behavior={Platform.OS === "ios" ? "padding" : "height"}>
+          <Pressable style={styles.backdropDismiss} onPress={() => setSelectedId(null)} />
           <Pressable style={styles.modalCard} onPress={() => {}}>
             {selectedItem ? (
-              <>
+              <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
                 <Image source={{ uri: selectedItem.uri }} style={styles.modalImage} resizeMode="cover" />
                 <View style={styles.modalMeta}>
                   <View>
@@ -336,10 +395,64 @@ export function RecordScreen({
                     </Pressable>
                   </View>
                 </View>
-              </>
+
+                {/* コメントセクション */}
+                <View style={styles.commentSection}>
+                  <Text style={styles.commentSectionTitle}>
+                    コメント{comments.length > 0 ? ` (${comments.length})` : ""}
+                  </Text>
+                  {comments.length === 0 ? (
+                    <Text style={styles.commentEmpty}>まだコメントはありません</Text>
+                  ) : (
+                    comments.map((c) => (
+                      <View key={c.id} style={styles.commentItem}>
+                        <View style={styles.commentAvatar}>
+                          <Text style={styles.commentAvatarText}>
+                            {(c.displayName || "?")[0].toUpperCase()}
+                          </Text>
+                        </View>
+                        <View style={styles.commentBody}>
+                          <Text style={styles.commentName}>{c.displayName || "Unknown"}</Text>
+                          <Text style={styles.commentText}>{c.body}</Text>
+                        </View>
+                        {currentUser && c.userId === currentUser.id ? (
+                          <Pressable onPress={() => handleDeleteComment(c.id)} hitSlop={8}>
+                            <Text style={styles.commentDeleteIcon}>✕</Text>
+                          </Pressable>
+                        ) : null}
+                      </View>
+                    ))
+                  )}
+                  {currentUser && deviceId ? (
+                    <View style={styles.commentInputRow}>
+                      <TextInput
+                        style={styles.commentInput}
+                        value={commentInput}
+                        onChangeText={setCommentInput}
+                        placeholder="コメントを追加..."
+                        placeholderTextColor="#AAA"
+                        maxLength={200}
+                        returnKeyType="send"
+                        onSubmitEditing={handleSubmitComment}
+                      />
+                      <Pressable
+                        style={({ pressed }) => [
+                          styles.commentSendBtn,
+                          (!commentInput.trim() || submittingComment) && styles.commentSendBtnDisabled,
+                          pressed && { opacity: 0.7 },
+                        ]}
+                        onPress={handleSubmitComment}
+                        disabled={!commentInput.trim() || submittingComment}
+                      >
+                        <Text style={styles.commentSendText}>送信</Text>
+                      </Pressable>
+                    </View>
+                  ) : null}
+                </View>
+              </ScrollView>
             ) : null}
           </Pressable>
-        </Pressable>
+        </KeyboardAvoidingView>
       </Modal>
     </View>
   );
@@ -553,6 +666,8 @@ const styles = StyleSheet.create({
   goRecordBtnText: { color: "#FFFFFF", fontWeight: "700", fontSize: 13 },
 
   // モーダル
+  backdropFull: { flex: 1, justifyContent: "flex-end" },
+  backdropDismiss: { flex: 1, backgroundColor: "rgba(26, 18, 9, 0.6)" },
   backdrop: {
     flex: 1, backgroundColor: "rgba(26, 18, 9, 0.6)",
     justifyContent: "flex-end", padding: 16, paddingBottom: 20,
@@ -581,4 +696,32 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: "#EFCFCA",
   },
   deleteBtnText: { color: "#B03020", fontWeight: "700", fontSize: 13 },
+
+  // コメント
+  commentSection: { padding: 16, gap: 12 },
+  commentSectionTitle: { fontSize: 14, fontWeight: "700", color: "#2A1F12" },
+  commentEmpty: { fontSize: 13, color: "#9A8B78", paddingVertical: 4 },
+  commentItem: { flexDirection: "row", alignItems: "flex-start", gap: 10 },
+  commentAvatar: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: "#7697A0", alignItems: "center", justifyContent: "center",
+  },
+  commentAvatarText: { color: "#FFF", fontWeight: "700", fontSize: 13 },
+  commentBody: { flex: 1 },
+  commentName: { fontSize: 12, fontWeight: "700", color: "#4A3E2E", marginBottom: 2 },
+  commentText: { fontSize: 14, color: "#2A1F12", lineHeight: 20 },
+  commentDeleteIcon: { fontSize: 12, color: "#B03020", paddingTop: 2 },
+  commentInputRow: { flexDirection: "row", gap: 8, alignItems: "center", marginTop: 4 },
+  commentInput: {
+    flex: 1,
+    borderWidth: 1.5, borderColor: "#DDD3BC", borderRadius: 20,
+    paddingHorizontal: 14, paddingVertical: 10,
+    fontSize: 14, color: "#2A1F12", backgroundColor: "#FFF",
+  },
+  commentSendBtn: {
+    backgroundColor: "#E86F00", borderRadius: 20,
+    paddingHorizontal: 16, paddingVertical: 10,
+  },
+  commentSendBtnDisabled: { backgroundColor: "#DDD3BC" },
+  commentSendText: { color: "#FFF", fontWeight: "700", fontSize: 13 },
 });

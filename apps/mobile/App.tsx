@@ -284,6 +284,8 @@ function AppContent() {
             onPhotoPosted={handlePhotoPosted}
             onStartPolling={startPolling}
             onDeleteItem={handleDeleteAlbumItem}
+            deviceId={deviceId}
+            currentUser={currentUser}
           />
         ) : null}
         {tab === "friends" ? (
@@ -298,7 +300,13 @@ function AppContent() {
           />
         ) : null}
         {tab === "profile" ? (
-          <ProfileScreen gateway={gateway} currentUser={currentUser} friendCount={friends.length} />
+          <ProfileScreen
+            gateway={gateway}
+            currentUser={currentUser}
+            friendCount={friends.length}
+            deviceId={deviceId}
+            onUserUpdated={setCurrentUser}
+          />
         ) : null}
       </View>
 

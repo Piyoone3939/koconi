@@ -4,9 +4,12 @@ import type {
   AddSharedMapPlacementCommand,
   AIMatchResult,
   AppStats,
+  Comment,
+  CreateCommentCommand,
   CreatePhotoCommand,
   CreatePlacementCommand,
   CreateSharedMapCommand,
+  DeleteCommentCommand,
   FriendRequest,
   KoconiUser,
   LandmarkPlacement,
@@ -15,8 +18,11 @@ import type {
   Photo,
   Photo3DStatus,
   RegisterUserCommand,
+  SearchResult,
   SendFriendRequestCommand,
   SharedMap,
+  Trip,
+  UpdateUserCommand,
 } from "../../domain/models/koconi";
 import type { KoconiGateway } from "../../domain/ports/koconi-gateway";
 import { HttpClient } from "./http-client";
@@ -303,6 +309,74 @@ export class KoconiGatewayHttp implements KoconiGateway {
     return placements.map(mapPlacement);
   }
 
+  async createComment(command: CreateCommentCommand): Promise<Comment> {
+    const response = await this.httpClient.request<{ ok: boolean; comment: RawComment }>("/v1/comments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        device_id: command.deviceId,
+        target_type: command.targetType,
+        target_id: command.targetId,
+        body: command.body,
+      }),
+    });
+    return mapComment(response.comment);
+  }
+
+  async listComments(targetType: "photo" | "placement" | "trip", targetId: number): Promise<Comment[]> {
+    const response = await this.httpClient.request<{ ok: boolean; comments: RawComment[] }>("/v1/comments", {
+      query: { target_type: targetType, target_id: targetId },
+    });
+    return (response.comments ?? []).map(mapComment);
+  }
+
+  async deleteComment(command: DeleteCommentCommand): Promise<void> {
+    await this.httpClient.request<{ ok: boolean }>(`/v1/comments/${command.commentId}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: command.deviceId }),
+    });
+  }
+
+  async search(
+    query: string,
+    types?: Array<"user" | "trip" | "placement">,
+    deviceId?: string,
+  ): Promise<SearchResult> {
+    const params: Record<string, string | number | boolean | null | undefined> = { query };
+    if (types && types.length > 0) params.type = types.join(",");
+    if (deviceId) params.device_id = deviceId;
+
+    const response = await this.httpClient.request<{
+      ok: boolean;
+      result: {
+        users: RawUser[];
+        trips: RawTrip[];
+        placements: components["schemas"]["LandmarkPlacement"][];
+      };
+    }>("/v1/search", { query: params });
+
+    return {
+      users: (response.result.users ?? []).map(mapUser),
+      trips: (response.result.trips ?? []).map(mapTrip),
+      placements: (response.result.placements ?? []).map(mapPlacement),
+    };
+  }
+
+  async getUser(userId: number): Promise<KoconiUser> {
+    const response = await this.httpClient.request<{ ok: boolean; user: RawUser }>(`/v1/users/${userId}`);
+    return mapUser(response.user);
+  }
+
+  async updateUser(command: UpdateUserCommand): Promise<KoconiUser> {
+    const response = await this.httpClient.request<{ ok: boolean; user: RawUser }>(`/v1/users/${command.userId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: command.deviceId, display_name: command.displayName }),
+    });
+    return mapUser(response.user);
+  }
+
   async listPlacementsByBounds(query: ListPlacementsByBoundsQuery): Promise<LandmarkPlacement[]> {
     const response = await this.httpClient.request<ListPlacementsResponse>("/v1/placements", {
       query: {
@@ -416,6 +490,52 @@ type RawSharedMap = {
   owner_user_id: number;
   created_at: string;
 };
+
+type RawTrip = {
+  id: number;
+  owner_user_id: number;
+  title: string;
+  description: string;
+  start_at: string | null;
+  end_at: string | null;
+  privacy_level: string;
+  created_at: string;
+};
+
+function mapTrip(t: RawTrip): Trip {
+  return {
+    id: toNumber(t.id),
+    ownerUserId: toNumber(t.owner_user_id),
+    title: toString(t.title),
+    description: toString(t.description),
+    startAt: t.start_at ?? null,
+    endAt: t.end_at ?? null,
+    privacyLevel: toString(t.privacy_level),
+    createdAt: toString(t.created_at),
+  };
+}
+
+type RawComment = {
+  id: number;
+  user_id: number;
+  display_name: string;
+  target_type: "photo" | "placement" | "trip";
+  target_id: number;
+  body: string;
+  created_at: string;
+};
+
+function mapComment(c: RawComment): Comment {
+  return {
+    id: toNumber(c.id),
+    userId: toNumber(c.user_id),
+    displayName: toString(c.display_name),
+    targetType: c.target_type,
+    targetId: toNumber(c.target_id),
+    body: toString(c.body),
+    createdAt: toString(c.created_at),
+  };
+}
 
 function mapSharedMap(m: RawSharedMap): SharedMap {
   return {

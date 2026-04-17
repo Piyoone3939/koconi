@@ -3,6 +3,8 @@ import { Mail, MessageSquare, Send, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState } from "react";
 
+const CONTACT_ENDPOINT = import.meta.env.VITE_CONTACT_FORM_ENDPOINT as string | undefined;
+
 export function Contact() {
   const [formData, setFormData] = useState({
     name: "",
@@ -11,15 +13,38 @@ export function Contact() {
     message: "",
   });
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // TODO: Implement actual form submission logic
-    setIsSubmitted(true);
-    setTimeout(() => {
-      setIsSubmitted(false);
+    setSubmitError(null);
+    setIsSubmitting(true);
+
+    try {
+      if (CONTACT_ENDPOINT) {
+        const res = await fetch(CONTACT_ENDPOINT, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(formData),
+        });
+        if (!res.ok) throw new Error(`送信に失敗しました (${res.status})`);
+      } else {
+        // エンドポイント未設定時は mailto: で開く
+        const body = encodeURIComponent(
+          `お名前: ${formData.name}\nメールアドレス: ${formData.email}\n種別: ${formData.subject}\n\n${formData.message}`
+        );
+        window.location.href = `mailto:support@koconi.com?subject=${encodeURIComponent(`[お問い合わせ] ${formData.subject}`)}&body=${body}`;
+      }
+
+      setIsSubmitted(true);
       setFormData({ name: "", email: "", subject: "", message: "" });
-    }, 3000);
+      setTimeout(() => setIsSubmitted(false), 5000);
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "送信に失敗しました");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleChange = (
@@ -367,18 +392,28 @@ export function Contact() {
                   </label>
                 </div>
 
+                {submitError ? (
+                  <p
+                    className="text-red-500 text-sm text-center"
+                    style={{ fontFamily: "'Noto Sans JP', sans-serif" }}
+                  >
+                    {submitError}
+                  </p>
+                ) : null}
+
                 <motion.button
                   type="submit"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  className="w-full py-4 bg-[#EF6C00] text-white rounded-full hover:bg-[#64B5F6] transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+                  disabled={isSubmitting}
+                  whileHover={isSubmitting ? {} : { scale: 1.02 }}
+                  whileTap={isSubmitting ? {} : { scale: 0.98 }}
+                  className="w-full py-4 bg-[#EF6C00] text-white rounded-full hover:bg-[#64B5F6] transition-all duration-300 shadow-lg hover:shadow-xl flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                   style={{
                     fontSize: "clamp(15px, 3vw, 18px)",
                     fontFamily: "'Noto Sans JP', sans-serif",
                   }}
                 >
                   <Send className="w-5 h-5" />
-                  送信する
+                  {isSubmitting ? "送信中..." : "送信する"}
                 </motion.button>
               </form>
             )}

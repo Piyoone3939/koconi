@@ -3,9 +3,12 @@ import type {
   AddSharedMapPlacementCommand,
   AIMatchResult,
   AppStats,
+  Comment,
+  CreateCommentCommand,
   CreatePhotoCommand,
   CreatePlacementCommand,
   CreateSharedMapCommand,
+  DeleteCommentCommand,
   FriendRequest,
   KoconiUser,
   LandmarkPlacement,
@@ -14,8 +17,10 @@ import type {
   Photo,
   Photo3DStatus,
   RegisterUserCommand,
+  SearchResult,
   SendFriendRequestCommand,
   SharedMap,
+  UpdateUserCommand,
 } from "../models/koconi";
 
 export interface KoconiGateway {
@@ -38,4 +43,10 @@ export interface KoconiGateway {
   addSharedMapMember(command: AddSharedMapMemberCommand): Promise<void>;
   addSharedMapPlacement(command: AddSharedMapPlacementCommand): Promise<void>;
   listSharedMapPlacements(deviceId: string, mapId: number): Promise<LandmarkPlacement[]>;
+  getUser(userId: number): Promise<KoconiUser>;
+  updateUser(command: UpdateUserCommand): Promise<KoconiUser>;
+  createComment(command: CreateCommentCommand): Promise<Comment>;
+  listComments(targetType: "photo" | "placement" | "trip", targetId: number): Promise<Comment[]>;
+  deleteComment(command: DeleteCommentCommand): Promise<void>;
+  search(query: string, types?: Array<"user" | "trip" | "placement">, deviceId?: string): Promise<SearchResult>;
 }
