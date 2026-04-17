@@ -14,7 +14,9 @@ def main():
     for it in items:
         img = Image.open(it["image"]).convert("RGB")
         v = emb.image_emb(img)
-        vecs.append(v); meta.append(it)
+        vecs.append(v)
+        # lat/lng を含む全フィールドをメタとして保持する
+        meta.append({k: it[k] for k in it if k != "image"})
 
     mat = np.vstack(vecs).astype("float32")
     index = faiss.IndexFlatIP(mat.shape[1])     # コサイン向け：正規化済み前提の内積

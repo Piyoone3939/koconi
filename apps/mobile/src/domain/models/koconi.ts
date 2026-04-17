@@ -132,3 +132,48 @@ export type AddSharedMapPlacementCommand = {
   mapId: number;
   placementId: number;
 };
+
+export type UpdateUserCommand = {
+  deviceId: string;
+  userId: number;
+  displayName: string;
+};
+
+export type Comment = {
+  id: number;
+  userId: number;
+  displayName: string;
+  targetType: "photo" | "placement" | "trip";
+  targetId: number;
+  body: string;
+  createdAt: string;
+};
+
+export type CreateCommentCommand = {
+  deviceId: string;
+  targetType: "photo" | "placement" | "trip";
+  targetId: number;
+  body: string;
+};
+
+export type DeleteCommentCommand = {
+  deviceId: string;
+  commentId: number;
+};
+
+export type SearchResult = {
+  users: KoconiUser[];
+  trips: Trip[];
+  placements: LandmarkPlacement[];
+};
+
+export type Trip = {
+  id: number;
+  ownerUserId: number;
+  title: string;
+  description: string;
+  startAt: string | null;
+  endAt: string | null;
+  privacyLevel: string;
+  createdAt: string;
+};

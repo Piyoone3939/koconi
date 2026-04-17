@@ -1,15 +1,33 @@
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import * as Clipboard from "expo-clipboard";
 import type { KoconiGateway } from "../../domain/ports/koconi-gateway";
 import type { KoconiUser } from "../../domain/models/koconi";
 
-type Props = { gateway: KoconiGateway; currentUser: KoconiUser | null; friendCount: number };
+type Props = {
+  gateway: KoconiGateway;
+  currentUser: KoconiUser | null;
+  friendCount: number;
+  deviceId: string;
+  onUserUpdated?: (user: KoconiUser) => void;
+};
 
-export function ProfileScreen({ gateway, currentUser, friendCount }: Props) {
+export function ProfileScreen({ gateway, currentUser, friendCount, deviceId, onUserUpdated }: Props) {
   const [photoCount, setPhotoCount] = useState(0);
   const [placementCount, setPlacementCount] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editName, setEditName] = useState("");
 
   const displayName = currentUser?.displayName ?? "Koconi User";
   const userTag = currentUser?.userTag ?? "@koconi_...";
@@ -28,6 +46,45 @@ export function ProfileScreen({ gateway, currentUser, friendCount }: Props) {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleShare = async () => {
+    await Share.share({
+      message: `Koconiで私のマップを見てみて！\nユーザータグ: ${userTag}`,
+    });
+  };
+
+  const handleOpenEdit = () => {
+    setEditName(displayName);
+    setEditModalVisible(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!currentUser) return;
+    const trimmed = editName.trim();
+    if (!trimmed) {
+      Alert.alert("エラー", "表示名を入力してください");
+      return;
+    }
+    try {
+      const updated = await gateway.updateUser({
+        deviceId,
+        userId: currentUser.id,
+        displayName: trimmed,
+      });
+      onUserUpdated?.(updated);
+      setEditModalVisible(false);
+    } catch {
+      Alert.alert("エラー", "更新に失敗しました");
+    }
+  };
+
+  const handleSettings = () => {
+    Alert.alert("設定", "設定機能は準備中です");
+  };
+
+  const handleSocialAdd = () => {
+    Alert.alert("ソーシャル連携", "この機能は準備中です");
+  };
+
   return (
     <View style={styles.container}>
       <ScrollView
@@ -38,7 +95,10 @@ export function ProfileScreen({ gateway, currentUser, friendCount }: Props) {
         {/* ヘッダー行 */}
         <View style={styles.headerRow}>
           <Text style={styles.headerTitle}>プロフィール</Text>
-          <Pressable style={({ pressed }) => [styles.settingsBtn, pressed && { opacity: 0.6 }]}>
+          <Pressable
+            style={({ pressed }) => [styles.settingsBtn, pressed && { opacity: 0.6 }]}
+            onPress={handleSettings}
+          >
             <Text style={styles.settingsIcon}>⚙</Text>
           </Pressable>
         </View>
@@ -60,6 +120,7 @@ export function ProfileScreen({ gateway, currentUser, friendCount }: Props) {
         {/* ソーシャル追加ボタン */}
         <Pressable
           style={({ pressed }) => [styles.socialBtn, pressed && { opacity: 0.75 }]}
+          onPress={handleSocialAdd}
         >
           <Text style={styles.socialBtnIcon}>🔗</Text>
           <Text style={styles.socialBtnText}>ソーシャルを追加</Text>
@@ -69,12 +130,14 @@ export function ProfileScreen({ gateway, currentUser, friendCount }: Props) {
         <View style={styles.actionRow}>
           <Pressable
             style={({ pressed }) => [styles.shareBtn, pressed && { opacity: 0.85 }]}
+            onPress={handleShare}
           >
             <Text style={styles.shareBtnIcon}>↑</Text>
             <Text style={styles.shareBtnText}>シェア</Text>
           </Pressable>
           <Pressable
             style={({ pressed }) => [styles.editBtn, pressed && { opacity: 0.85 }]}
+            onPress={handleOpenEdit}
           >
             <Text style={styles.editBtnIcon}>✎</Text>
             <Text style={styles.editBtnText}>編集</Text>
@@ -102,6 +165,43 @@ export function ProfileScreen({ gateway, currentUser, friendCount }: Props) {
           </View>
         </View>
       </ScrollView>
+
+      {/* 表示名編集モーダル */}
+      <Modal
+        visible={editModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setEditModalVisible(false)}>
+          <Pressable style={styles.modalCard} onPress={() => {}}>
+            <Text style={styles.modalTitle}>表示名を編集</Text>
+            <TextInput
+              style={styles.modalInput}
+              value={editName}
+              onChangeText={setEditName}
+              placeholder="表示名"
+              placeholderTextColor="#AAA"
+              maxLength={30}
+              autoFocus
+            />
+            <View style={styles.modalActions}>
+              <Pressable
+                style={({ pressed }) => [styles.modalCancelBtn, pressed && { opacity: 0.7 }]}
+                onPress={() => setEditModalVisible(false)}
+              >
+                <Text style={styles.modalCancelText}>キャンセル</Text>
+              </Pressable>
+              <Pressable
+                style={({ pressed }) => [styles.modalSaveBtn, pressed && { opacity: 0.7 }]}
+                onPress={handleSaveEdit}
+              >
+                <Text style={styles.modalSaveText}>保存</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -118,7 +218,6 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
 
-  // ヘッダー行
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -145,7 +244,6 @@ const styles = StyleSheet.create({
     color: "#6B5E4A",
   },
 
-  // アバター + 名前
   profileRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -191,7 +289,6 @@ const styles = StyleSheet.create({
     color: "#E86F00",
   },
 
-  // ソーシャルボタン
   socialBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -211,7 +308,6 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
 
-  // アクションボタン行
   actionRow: {
     flexDirection: "row",
     gap: 10,
@@ -255,13 +351,11 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
 
-  // 区切り
   divider: {
     height: 1,
     backgroundColor: "#DDD3BC",
   },
 
-  // 統計
   statsRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -286,5 +380,66 @@ const styles = StyleSheet.create({
     width: 1,
     height: 32,
     backgroundColor: "#DDD3BC",
+  },
+
+  // 編集モーダル
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 24,
+  },
+  modalCard: {
+    width: "100%",
+    backgroundColor: "#FDFBE5",
+    borderRadius: 16,
+    padding: 24,
+    gap: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#2A1F12",
+  },
+  modalInput: {
+    borderWidth: 1.5,
+    borderColor: "#DDD3BC",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: "#2A1F12",
+    backgroundColor: "#FFF",
+  },
+  modalActions: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 12,
+    borderRadius: 50,
+    borderWidth: 1,
+    borderColor: "#DDD3BC",
+    backgroundColor: "#EAE3D0",
+  },
+  modalCancelText: {
+    color: "#4A3E2E",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  modalSaveBtn: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 12,
+    borderRadius: 50,
+    backgroundColor: "#E86F00",
+  },
+  modalSaveText: {
+    color: "#FFF",
+    fontWeight: "700",
+    fontSize: 14,
   },
 });

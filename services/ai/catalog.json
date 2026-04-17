@@ -3,12 +3,16 @@
     "asset_id": "tokyo_tower",
     "image": "assets_render/TY_tokyo_tower_am1.jpg",
     "default_scale": 1.0,
-    "default_rotation": [0, 180, 0]
+    "default_rotation": [0, 180, 0],
+    "lat": 35.6586,
+    "lng": 139.7454
   },
   {
     "asset_id": "kiyomizu_temple",
     "image": "assets_render/KY_kiyomizu_temple_am1.jpg",
     "default_scale": 0.9,
-    "default_rotation": [0, 90, 0]
+    "default_rotation": [0, 90, 0],
+    "lat": 34.9948,
+    "lng": 135.7851
   }
 ]

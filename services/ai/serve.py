@@ -188,7 +188,47 @@ async def get_job_status(job_id: str):
 
 # ---- マッチングAPI（既存） ----
 
-def rerank_with_gps(cands, user_latlng=None):
+def _haversine_km(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """2点間の距離をキロメートルで返す（Haversine公式）"""
+    import math
+    R = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlng = math.radians(lng2 - lng1)
+    a = math.sin(dlat / 2) ** 2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlng / 2) ** 2
+    return R * 2 * math.asin(math.sqrt(a))
+
+
+# GPS距離スコアの有効半径 (km)。この範囲外は距離スコア = 0
+_GPS_RADIUS_KM = 50.0
+
+
+def rerank_with_gps(cands: list, user_latlng: tuple | None = None) -> list:
+    """
+    ユーザー位置情報がある場合、match_score と距離スコアを合成して再ソートする。
+    meta に lat/lng がないアセットは距離スコアを 0 として扱う。
+    """
+    if user_latlng is None or user_latlng[0] is None or user_latlng[1] is None:
+        return cands
+
+    user_lat, user_lng = user_latlng
+    meta_map = {m["asset_id"]: m for m in meta}
+
+    for cand in cands:
+        asset_meta = meta_map.get(cand["asset_id"], {})
+        asset_lat = asset_meta.get("lat")
+        asset_lng = asset_meta.get("lng")
+
+        if asset_lat is not None and asset_lng is not None:
+            dist_km = _haversine_km(user_lat, user_lng, asset_lat, asset_lng)
+            # 半径内なら距離スコア [0, 1]、外なら 0
+            dist_score = max(0.0, 1.0 - dist_km / _GPS_RADIUS_KM)
+        else:
+            dist_score = 0.0
+
+        # match_score (コサイン類似度) 70% + 距離スコア 30% で合成
+        cand["combined_score"] = 0.7 * cand["match_score"] + 0.3 * dist_score
+
+    cands.sort(key=lambda c: c["combined_score"], reverse=True)
     return cands
 
 

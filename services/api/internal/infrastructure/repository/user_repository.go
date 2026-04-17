@@ -72,6 +72,14 @@ func (r *PgUserRepository) FindByID(ctx context.Context, id int64) (usecase.User
 	return u, true, nil
 }
 
+func (r *PgUserRepository) UpdateDisplayName(ctx context.Context, id int64, displayName string) (usecase.User, error) {
+	row := r.pool.QueryRow(ctx, `
+		UPDATE users SET display_name = $1 WHERE id = $2
+		RETURNING id, device_id, display_name, user_tag, created_at
+	`, displayName, id)
+	return scanUser(row)
+}
+
 type scanner interface {
 	Scan(dest ...any) error
 }

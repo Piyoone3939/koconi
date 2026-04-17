@@ -3,7 +3,7 @@ type Primitive = string | number | boolean;
 type QueryValue = Primitive | null | undefined;
 
 type RequestOptions = {
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "PUT" | "DELETE";
   headers?: HeadersInit;
   body?: BodyInit | null;
   query?: Record<string, QueryValue>;
