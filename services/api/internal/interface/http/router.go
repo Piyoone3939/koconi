@@ -21,6 +21,9 @@ func NewRouter(
 	tripHandler *handler.TripHandler,
 	commentHandler *handler.CommentHandler,
 	searchHandler *handler.SearchHandler,
+	sceneHandler *handler.SceneHandler,
+	uploadHandler *handler.UploadHandler,
+	pushHandler *handler.PushHandler,
 ) http.Handler {
 	r := chi.NewRouter()
 
@@ -63,12 +66,24 @@ func NewRouter(
 		v1.Post("/trips", tripHandler.CreateTrip)
 		v1.Get("/trips", tripHandler.ListTrips)
 		v1.Get("/trips/{tripID}", tripHandler.GetTrip)
+		v1.Put("/trips/{tripID}", tripHandler.UpdateTrip)
+		v1.Delete("/trips/{tripID}", tripHandler.DeleteTrip)
 
 		v1.Post("/comments", commentHandler.CreateComment)
 		v1.Get("/comments", commentHandler.ListComments)
 		v1.Delete("/comments/{commentID}", commentHandler.DeleteComment)
 
 		v1.Get("/search", searchHandler.Search)
+
+		v1.Post("/placements/{placementID}/scenes", sceneHandler.CreateScene)
+		v1.Get("/placements/{placementID}/scenes", sceneHandler.ListScenes)
+
+		v1.Put("/users/{userID}/premium", userHandler.SetPremium)
+
+		v1.Post("/upload", uploadHandler.Upload)
+		v1.Get("/images/*", uploadHandler.ServeImage)
+
+		v1.Post("/push/register", pushHandler.Register)
 	})
 
 	return r

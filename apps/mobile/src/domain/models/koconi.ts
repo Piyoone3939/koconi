@@ -83,6 +83,23 @@ export type KoconiUser = {
   id: number;
   displayName: string;
   userTag: string;
+  isPremium: boolean;
+};
+
+export type PlacementScene = {
+  id: number;
+  placementId: number;
+  userId: number;
+  direction: "N" | "E" | "S" | "W";
+  imageKey: string;
+  createdAt: string;
+};
+
+export type CreateSceneCommand = {
+  deviceId: string;
+  placementId: number;
+  direction: "N" | "E" | "S" | "W";
+  imageKey: string;
 };
 
 export type FriendRequest = {
@@ -176,4 +193,13 @@ export type Trip = {
   endAt: string | null;
   privacyLevel: string;
   createdAt: string;
+};
+
+export type CreateTripCommand = {
+  deviceId: string;
+  title: string;
+  description?: string;
+  startAt?: string;
+  endAt?: string;
+  privacyLevel?: string;
 };

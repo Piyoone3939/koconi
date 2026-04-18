@@ -10,10 +10,11 @@ import (
 )
 
 type UserHandler struct {
-	registerUC *usecase.RegisterUserUseCase
-	searchUC   *usecase.SearchUserUseCase
-	getUC      *usecase.GetUserUseCase
-	updateUC   *usecase.UpdateUserUseCase
+	registerUC   *usecase.RegisterUserUseCase
+	searchUC     *usecase.SearchUserUseCase
+	getUC        *usecase.GetUserUseCase
+	updateUC     *usecase.UpdateUserUseCase
+	setPremiumUC *usecase.SetPremiumUseCase
 }
 
 func NewUserHandler(
@@ -21,8 +22,9 @@ func NewUserHandler(
 	searchUC *usecase.SearchUserUseCase,
 	getUC *usecase.GetUserUseCase,
 	updateUC *usecase.UpdateUserUseCase,
+	setPremiumUC *usecase.SetPremiumUseCase,
 ) *UserHandler {
-	return &UserHandler{registerUC: registerUC, searchUC: searchUC, getUC: getUC, updateUC: updateUC}
+	return &UserHandler{registerUC: registerUC, searchUC: searchUC, getUC: getUC, updateUC: updateUC, setPremiumUC: setPremiumUC}
 }
 
 // POST /v1/users/register
@@ -125,6 +127,39 @@ func (h *UserHandler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "user": userJSON(user)})
 }
 
+// PUT /v1/users/{userID}/premium
+func (h *UserHandler) SetPremium(w http.ResponseWriter, r *http.Request) {
+	userID, err := parseUserID(r)
+	if err != nil {
+		writeBadRequest(w, "invalid user id")
+		return
+	}
+
+	var body struct {
+		DeviceID  string `json:"device_id"`
+		IsPremium bool   `json:"is_premium"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeBadRequest(w, "invalid json")
+		return
+	}
+
+	user, err := h.setPremiumUC.Execute(r.Context(), body.DeviceID, userID, body.IsPremium)
+	if err != nil {
+		switch err.Error() {
+		case "user not found":
+			writeNotFound(w, err.Error())
+		case "forbidden":
+			writeJSON(w, http.StatusForbidden, errorResponse{OK: false, Error: err.Error()})
+		default:
+			writeBadRequest(w, err.Error())
+		}
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "user": userJSON(user)})
+}
+
 func parseUserID(r *http.Request) (int64, error) {
 	return strconv.ParseInt(chi.URLParam(r, "userID"), 10, 64)
 }
@@ -134,5 +169,6 @@ func userJSON(u usecase.User) map[string]any {
 		"id":           u.ID,
 		"display_name": u.DisplayName,
 		"user_tag":     u.UserTag,
+		"is_premium":   u.IsPremium,
 	}
 }

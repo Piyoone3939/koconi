@@ -7,7 +7,9 @@ import type {
   CreateCommentCommand,
   CreatePhotoCommand,
   CreatePlacementCommand,
+  CreateSceneCommand,
   CreateSharedMapCommand,
+  CreateTripCommand,
   DeleteCommentCommand,
   FriendRequest,
   KoconiUser,
@@ -16,10 +18,12 @@ import type {
   MatchPhotoCommand,
   Photo,
   Photo3DStatus,
+  PlacementScene,
   RegisterUserCommand,
   SearchResult,
   SendFriendRequestCommand,
   SharedMap,
+  Trip,
   UpdateUserCommand,
 } from "../models/koconi";
 
@@ -49,4 +53,12 @@ export interface KoconiGateway {
   listComments(targetType: "photo" | "placement" | "trip", targetId: number): Promise<Comment[]>;
   deleteComment(command: DeleteCommentCommand): Promise<void>;
   search(query: string, types?: Array<"user" | "trip" | "placement">, deviceId?: string): Promise<SearchResult>;
+  createTrip(command: CreateTripCommand): Promise<Trip>;
+  getTrip(deviceId: string, tripId: number): Promise<Trip>;
+  listTrips(deviceId: string): Promise<Trip[]>;
+  updateTrip(deviceId: string, tripId: number, command: Omit<CreateTripCommand, "deviceId">): Promise<Trip>;
+  deleteTrip(deviceId: string, tripId: number): Promise<void>;
+  createScene(command: CreateSceneCommand): Promise<PlacementScene>;
+  listScenes(deviceId: string, placementId: number): Promise<PlacementScene[]>;
+  setPremium(deviceId: string, userId: number, isPremium: boolean): Promise<KoconiUser>;
 }

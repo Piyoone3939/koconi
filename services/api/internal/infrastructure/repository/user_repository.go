@@ -22,14 +22,14 @@ func (r *PgUserRepository) UpsertByDeviceID(ctx context.Context, deviceID string
 		INSERT INTO users (device_id, user_tag)
 		VALUES ($1, $2)
 		ON CONFLICT (device_id) DO UPDATE SET device_id = EXCLUDED.device_id
-		RETURNING id, device_id, display_name, user_tag, created_at
+		RETURNING id, device_id, display_name, user_tag, is_premium, created_at
 	`, deviceID, candidateTag)
 	return scanUser(row)
 }
 
 func (r *PgUserRepository) FindByDeviceID(ctx context.Context, deviceID string) (usecase.User, bool, error) {
 	row := r.pool.QueryRow(ctx, `
-		SELECT id, device_id, display_name, user_tag, created_at
+		SELECT id, device_id, display_name, user_tag, is_premium, created_at
 		FROM users WHERE device_id = $1
 	`, deviceID)
 	u, err := scanUser(row)
@@ -44,7 +44,7 @@ func (r *PgUserRepository) FindByDeviceID(ctx context.Context, deviceID string) 
 
 func (r *PgUserRepository) FindByTag(ctx context.Context, tag string) (usecase.User, bool, error) {
 	row := r.pool.QueryRow(ctx, `
-		SELECT id, device_id, display_name, user_tag, created_at
+		SELECT id, device_id, display_name, user_tag, is_premium, created_at
 		FROM users WHERE user_tag = $1
 	`, tag)
 	u, err := scanUser(row)
@@ -59,7 +59,7 @@ func (r *PgUserRepository) FindByTag(ctx context.Context, tag string) (usecase.U
 
 func (r *PgUserRepository) FindByID(ctx context.Context, id int64) (usecase.User, bool, error) {
 	row := r.pool.QueryRow(ctx, `
-		SELECT id, device_id, display_name, user_tag, created_at
+		SELECT id, device_id, display_name, user_tag, is_premium, created_at
 		FROM users WHERE id = $1
 	`, id)
 	u, err := scanUser(row)
@@ -75,8 +75,16 @@ func (r *PgUserRepository) FindByID(ctx context.Context, id int64) (usecase.User
 func (r *PgUserRepository) UpdateDisplayName(ctx context.Context, id int64, displayName string) (usecase.User, error) {
 	row := r.pool.QueryRow(ctx, `
 		UPDATE users SET display_name = $1 WHERE id = $2
-		RETURNING id, device_id, display_name, user_tag, created_at
+		RETURNING id, device_id, display_name, user_tag, is_premium, created_at
 	`, displayName, id)
+	return scanUser(row)
+}
+
+func (r *PgUserRepository) SetPremium(ctx context.Context, id int64, isPremium bool) (usecase.User, error) {
+	row := r.pool.QueryRow(ctx, `
+		UPDATE users SET is_premium = $1 WHERE id = $2
+		RETURNING id, device_id, display_name, user_tag, is_premium, created_at
+	`, isPremium, id)
 	return scanUser(row)
 }
 
@@ -86,7 +94,7 @@ type scanner interface {
 
 func scanUser(row scanner) (usecase.User, error) {
 	var u usecase.User
-	err := row.Scan(&u.ID, &u.DeviceID, &u.DisplayName, &u.UserTag, &u.CreatedAt)
+	err := row.Scan(&u.ID, &u.DeviceID, &u.DisplayName, &u.UserTag, &u.IsPremium, &u.CreatedAt)
 	return u, err
 }
 

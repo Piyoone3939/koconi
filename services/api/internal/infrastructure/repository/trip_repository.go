@@ -79,3 +79,21 @@ func (r *PgTripRepository) ListByOwner(ctx context.Context, ownerUserID int64) (
 	}
 	return out, rows.Err()
 }
+
+func (r *PgTripRepository) Update(ctx context.Context, id int64, title, description string, startAt, endAt *time.Time, privacyLevel string) (domain.Trip, error) {
+	var t domain.Trip
+	err := r.pool.QueryRow(ctx, `
+		UPDATE trips SET title=$1, description=$2, start_at=$3, end_at=$4, privacy_level=$5
+		WHERE id=$6
+		RETURNING id, owner_user_id, title, description, start_at, end_at, privacy_level, created_at
+	`, title, description, startAt, endAt, privacyLevel, id).Scan(
+		&t.ID, &t.OwnerUserID, &t.Title, &t.Description,
+		&t.StartAt, &t.EndAt, &t.PrivacyLevel, &t.CreatedAt,
+	)
+	return t, err
+}
+
+func (r *PgTripRepository) Delete(ctx context.Context, id int64) error {
+	_, err := r.pool.Exec(ctx, `DELETE FROM trips WHERE id=$1`, id)
+	return err
+}
