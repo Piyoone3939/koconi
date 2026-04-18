@@ -8,6 +8,9 @@ import { FriendsScreen } from "./src/presentation/screens/FriendsScreen";
 import { MapScreen } from "./src/presentation/screens/MapScreen";
 import { ProfileScreen } from "./src/presentation/screens/ProfileScreen";
 import { RecordScreen, type AlbumItem, type AlbumPhotoInput } from "./src/presentation/screens/RecordScreen";
+import { SearchScreen } from "./src/presentation/screens/SearchScreen";
+import { TripScreen } from "./src/presentation/screens/TripScreen";
+import { usePushNotifications } from "./src/application/hooks/usePushNotifications";
 import { FriendsIcon, MapIcon, PhotoIcon, ProfileIcon } from "./src/presentation/components/TabIcons";
 import type { KoconiUser, SharedMap } from "./src/domain/models/koconi";
 
@@ -18,7 +21,7 @@ function generateDeviceId(): string {
 }
 
 type GenerationStatus = "idle" | "pending" | "processing" | "done" | "failed";
-type TabKey = "map" | "record" | "friends" | "profile";
+type TabKey = "map" | "record" | "search" | "trip" | "friends" | "profile";
 
 export type MapMode =
   | { type: "self" }
@@ -57,6 +60,7 @@ function AppContent() {
   const splashOpacity = useRef(new Animated.Value(1)).current;
   const [deviceId, setDeviceId] = useState<string>("");
   const [currentUser, setCurrentUser] = useState<KoconiUser | null>(null);
+  usePushNotifications(deviceId || null);
   const [friends, setFriends] = useState<KoconiUser[]>([]);
   const [sharedMaps, setSharedMaps] = useState<SharedMap[]>([]);
   const [mapMode, setMapMode] = useState<MapMode>({ type: "self" });
@@ -225,6 +229,8 @@ function AppContent() {
   const TAB_ITEMS: { key: TabKey; label: string }[] = [
     { key: "map",     label: "Map"     },
     { key: "record",  label: "Photo"   },
+    { key: "search",  label: "Search"  },
+    { key: "trip",    label: "Trip"    },
     { key: "friends", label: "Friends" },
     { key: "profile", label: "Profile" },
   ];
@@ -234,6 +240,8 @@ function AppContent() {
     switch (key) {
       case "map":     return <MapIcon     color={color} size={TAB_ICON_SIZE} />;
       case "record":  return <PhotoIcon   color={color} size={TAB_ICON_SIZE} />;
+      case "search":  return <Text style={{ color, fontSize: TAB_ICON_SIZE, lineHeight: TAB_ICON_SIZE + 2 }}>🔍</Text>;
+      case "trip":    return <Text style={{ color, fontSize: TAB_ICON_SIZE, lineHeight: TAB_ICON_SIZE + 2 }}>✈️</Text>;
       case "friends": return <FriendsIcon color={color} size={TAB_ICON_SIZE} />;
       case "profile": return <ProfileIcon color={color} size={TAB_ICON_SIZE} />;
     }
@@ -274,6 +282,7 @@ function AppContent() {
             deviceId={deviceId}
             friends={friends}
             sharedMaps={sharedMaps}
+            currentUser={currentUser}
           />
         ) : null}
         {tab === "record" ? (
@@ -286,6 +295,18 @@ function AppContent() {
             onDeleteItem={handleDeleteAlbumItem}
             deviceId={deviceId}
             currentUser={currentUser}
+          />
+        ) : null}
+        {tab === "search" ? (
+          <SearchScreen
+            gateway={gateway}
+            deviceId={deviceId}
+          />
+        ) : null}
+        {tab === "trip" ? (
+          <TripScreen
+            gateway={gateway}
+            deviceId={deviceId}
           />
         ) : null}
         {tab === "friends" ? (

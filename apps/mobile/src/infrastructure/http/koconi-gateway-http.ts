@@ -377,6 +377,95 @@ export class KoconiGatewayHttp implements KoconiGateway {
     return mapUser(response.user);
   }
 
+  async createTrip(command: import("../../domain/models/koconi").CreateTripCommand): Promise<import("../../domain/models/koconi").Trip> {
+    const response = await this.httpClient.request<{ ok: boolean; trip: RawTrip }>("/v1/trips", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        device_id: command.deviceId,
+        title: command.title,
+        description: command.description ?? "",
+        start_at: command.startAt ?? null,
+        end_at: command.endAt ?? null,
+        privacy_level: command.privacyLevel ?? "private",
+      }),
+    });
+    return mapTrip(response.trip);
+  }
+
+  async updateTrip(deviceId: string, tripId: number, command: Omit<import("../../domain/models/koconi").CreateTripCommand, "deviceId">): Promise<import("../../domain/models/koconi").Trip> {
+    const response = await this.httpClient.request<{ ok: boolean; trip: RawTrip }>(`/v1/trips/${tripId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        device_id: deviceId,
+        title: command.title,
+        description: command.description ?? "",
+        start_at: command.startAt ?? null,
+        end_at: command.endAt ?? null,
+        privacy_level: command.privacyLevel ?? "private",
+      }),
+    });
+    return mapTrip(response.trip);
+  }
+
+  async deleteTrip(deviceId: string, tripId: number): Promise<void> {
+    await this.httpClient.request<{ ok: boolean }>(`/v1/trips/${tripId}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: deviceId }),
+    });
+  }
+
+  async getTrip(deviceId: string, tripId: number): Promise<import("../../domain/models/koconi").Trip> {
+    const response = await this.httpClient.request<{ ok: boolean; trip: RawTrip }>(
+      `/v1/trips/${tripId}`,
+      { query: { device_id: deviceId } },
+    );
+    return mapTrip(response.trip);
+  }
+
+  async listTrips(deviceId: string): Promise<import("../../domain/models/koconi").Trip[]> {
+    const response = await this.httpClient.request<{ ok: boolean; trips: RawTrip[] | null }>(
+      "/v1/trips",
+      { query: { device_id: deviceId } },
+    );
+    return (response.trips ?? []).map(mapTrip);
+  }
+
+  async createScene(command: import("../../domain/models/koconi").CreateSceneCommand): Promise<import("../../domain/models/koconi").PlacementScene> {
+    const response = await this.httpClient.request<{ ok: boolean; scene: RawScene }>(
+      `/v1/placements/${command.placementId}/scenes`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          device_id: command.deviceId,
+          direction: command.direction,
+          image_key: command.imageKey,
+        }),
+      },
+    );
+    return mapScene(response.scene);
+  }
+
+  async listScenes(deviceId: string, placementId: number): Promise<import("../../domain/models/koconi").PlacementScene[]> {
+    const response = await this.httpClient.request<{ ok: boolean; scenes: RawScene[] | null }>(
+      `/v1/placements/${placementId}/scenes`,
+      { query: { device_id: deviceId } },
+    );
+    return (response.scenes ?? []).map(mapScene);
+  }
+
+  async setPremium(deviceId: string, userId: number, isPremium: boolean): Promise<KoconiUser> {
+    const response = await this.httpClient.request<{ ok: boolean; user: RawUser }>(`/v1/users/${userId}/premium`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ device_id: deviceId, is_premium: isPremium }),
+    });
+    return mapUser(response.user);
+  }
+
   async listPlacementsByBounds(query: ListPlacementsByBoundsQuery): Promise<LandmarkPlacement[]> {
     const response = await this.httpClient.request<ListPlacementsResponse>("/v1/placements", {
       query: {
@@ -431,6 +520,7 @@ type RawUser = {
   id: number;
   display_name: string;
   user_tag: string;
+  is_premium?: boolean;
 };
 
 type RawFriendRequest = {
@@ -445,6 +535,7 @@ function mapUser(u: RawUser): KoconiUser {
     id: toNumber(u.id),
     displayName: toString(u.display_name),
     userTag: toString(u.user_tag),
+    isPremium: u.is_premium ?? false,
   };
 }
 
@@ -534,6 +625,26 @@ function mapComment(c: RawComment): Comment {
     targetId: toNumber(c.target_id),
     body: toString(c.body),
     createdAt: toString(c.created_at),
+  };
+}
+
+type RawScene = {
+  id: number;
+  placement_id: number;
+  user_id: number;
+  direction: "N" | "E" | "S" | "W";
+  image_key: string;
+  created_at: string;
+};
+
+function mapScene(s: RawScene): import("../../domain/models/koconi").PlacementScene {
+  return {
+    id: toNumber(s.id),
+    placementId: toNumber(s.placement_id),
+    userId: toNumber(s.user_id),
+    direction: s.direction,
+    imageKey: toString(s.image_key),
+    createdAt: toString(s.created_at),
   };
 }
 

@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	aiinfra "koconi/api/internal/infrastructure/ai"
 	"koconi/api/internal/infrastructure/repository"
+	"koconi/api/internal/infrastructure/storage"
 	apphttp "koconi/api/internal/interface/http"
 	"koconi/api/internal/interface/http/handler"
 	"koconi/api/internal/usecase"
@@ -71,11 +72,12 @@ func main() {
 	searchUserUC := usecase.NewSearchUserUseCase(userRepo)
 	getUserUC := usecase.NewGetUserUseCase(userRepo)
 	updateUserUC := usecase.NewUpdateUserUseCase(userRepo)
+	setPremiumUC := usecase.NewSetPremiumUseCase(userRepo)
 	sendFriendReqUC := usecase.NewSendFriendRequestUseCase(userRepo, friendRepo)
 	listFriendsUC := usecase.NewListFriendsUseCase(userRepo, friendRepo)
 	listIncomingUC := usecase.NewListIncomingRequestsUseCase(userRepo, friendRepo)
 	respondFriendReqUC := usecase.NewRespondFriendRequestUseCase(userRepo, friendRepo)
-	userHandler := handler.NewUserHandler(registerUserUC, searchUserUC, getUserUC, updateUserUC)
+	userHandler := handler.NewUserHandler(registerUserUC, searchUserUC, getUserUC, updateUserUC, setPremiumUC)
 	friendHandler := handler.NewFriendHandler(sendFriendReqUC, listFriendsUC, listIncomingUC, respondFriendReqUC)
 
 	sharedMapRepo := repository.NewSharedMapRepository(pool)
@@ -90,7 +92,9 @@ func main() {
 	createTripUC := usecase.NewCreateTripUseCase(userRepo, tripRepo)
 	getTripUC := usecase.NewGetTripUseCase(userRepo, tripRepo)
 	listTripsUC := usecase.NewListTripsUseCase(userRepo, tripRepo)
-	tripHandler := handler.NewTripHandler(createTripUC, getTripUC, listTripsUC)
+	updateTripUC := usecase.NewUpdateTripUseCase(userRepo, tripRepo)
+	deleteTripUC := usecase.NewDeleteTripUseCase(userRepo, tripRepo)
+	tripHandler := handler.NewTripHandler(createTripUC, getTripUC, listTripsUC, updateTripUC, deleteTripUC)
 
 	commentRepo := repository.NewCommentRepository(pool)
 	createCommentUC := usecase.NewCreateCommentUseCase(userRepo, commentRepo)
@@ -102,7 +106,23 @@ func main() {
 	searchUC := usecase.NewSearchUseCase(userRepo, searchRepo)
 	searchHandler := handler.NewSearchHandler(searchUC)
 
-	r := apphttp.NewRouter(memoryHandler, photoHandler, placementHandler, photoMatchHandler, photo3DStatusHandler, statsHandler, userHandler, friendHandler, sharedMapHandler, tripHandler, commentHandler, searchHandler)
+	sceneRepo := repository.NewSceneRepository(pool)
+	createSceneUC := usecase.NewCreateSceneUseCase(userRepo, sceneRepo)
+	listScenesUC := usecase.NewListScenesUseCase(userRepo, sceneRepo)
+	sceneHandler := handler.NewSceneHandler(createSceneUC, listScenesUC)
+
+	storagePath := os.Getenv("STORAGE_PATH")
+	if storagePath == "" {
+		storagePath = "/data/uploads"
+	}
+	localStorage := storage.NewLocalStorage(storagePath)
+	uploadHandler := handler.NewUploadHandler(localStorage)
+
+	pushTokenRepo := repository.NewPushTokenRepository(pool)
+	registerPushUC := usecase.NewRegisterPushTokenUseCase(userRepo, pushTokenRepo)
+	pushHandler := handler.NewPushHandler(registerPushUC)
+
+	r := apphttp.NewRouter(memoryHandler, photoHandler, placementHandler, photoMatchHandler, photo3DStatusHandler, statsHandler, userHandler, friendHandler, sharedMapHandler, tripHandler, commentHandler, searchHandler, sceneHandler, uploadHandler, pushHandler)
 
 	srv := &http.Server{
 		Addr:              ":3000",

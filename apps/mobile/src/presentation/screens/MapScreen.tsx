@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import * as Location from "expo-location";
 
 import MapboxGL from "@rnmapbox/maps";
@@ -7,6 +7,8 @@ import { listPlacements } from "../../application/usecases/photo-placement-flow"
 import type { KoconiGateway } from "../../domain/ports/koconi-gateway";
 import type { KoconiUser, SharedMap } from "../../domain/models/koconi";
 import type { MapMode } from "../../../App";
+import { SceneViewerScreen } from "./SceneViewerScreen";
+import { SceneCaptureScreen } from "./SceneCaptureScreen";
 
 MapboxGL.setAccessToken(process.env.EXPO_PUBLIC_MAPBOX_TOKEN ?? "");
 
@@ -32,6 +34,7 @@ export function MapScreen({
   deviceId,
   friends,
   sharedMaps,
+  currentUser,
 }: {
   gateway: KoconiGateway;
   refreshSignal?: number;
@@ -41,6 +44,7 @@ export function MapScreen({
   deviceId: string;
   friends: KoconiUser[];
   sharedMaps: SharedMap[];
+  currentUser?: KoconiUser | null;
 }) {
   const cameraRef = useRef<MapboxGL.Camera>(null);
   const [loading, setLoading] = useState(false);
@@ -48,6 +52,9 @@ export function MapScreen({
   const [items, setItems] = useState<PlacementItem[]>([]);
   const [userLocation, setUserLocation] = useState<[number, number] | null>(null);
   const [selectorOpen, setSelectorOpen] = useState(false);
+  const [viewerPlacementId, setViewerPlacementId] = useState<number | null>(null);
+  const [capturePlacementId, setCapturePlacementId] = useState<number | null>(null);
+  const [menuPlacementId, setMenuPlacementId] = useState<number | null>(null);
 
   // 現在地追跡
   useEffect(() => {
@@ -226,7 +233,7 @@ export function MapScreen({
             coordinate={[item.lng, item.lat]}
             allowOverlap
           >
-            <Pressable onPress={() => onMarkerPhotoPress?.(item.photoId)}>
+            <Pressable onPress={() => onMarkerPhotoPress?.(item.photoId)} onLongPress={() => setMenuPlacementId(item.id)}>
               <View style={styles.pin} />
             </Pressable>
           </MapboxGL.MarkerView>
@@ -239,7 +246,7 @@ export function MapScreen({
             coordinate={[item.lng, item.lat]}
             allowOverlap
           >
-            <Pressable onPress={() => onMarkerPhotoPress?.(item.photoId)}>
+            <Pressable onPress={() => onMarkerPhotoPress?.(item.photoId)} onLongPress={() => setMenuPlacementId(item.id)}>
               <View style={styles.pin3d} />
             </Pressable>
           </MapboxGL.MarkerView>
@@ -334,6 +341,65 @@ export function MapScreen({
           <Text style={styles.emptyText}>No placements yet</Text>
         </View>
       ) : null}
+
+      {/* ピン長押しメニュー */}
+      <Modal
+        visible={menuPlacementId != null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuPlacementId(null)}
+      >
+        <Pressable style={styles.menuOverlay} onPress={() => setMenuPlacementId(null)}>
+          <View style={styles.menuCard}>
+            <Text style={styles.menuTitle}>360° シーン</Text>
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => {
+                setViewerPlacementId(menuPlacementId);
+                setMenuPlacementId(null);
+              }}
+            >
+              <Text style={styles.menuItemText}>👁  閲覧する</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.menuItem, !currentUser?.isPremium && styles.menuItemDisabled]}
+              onPress={() => {
+                if (!currentUser?.isPremium) return;
+                setCapturePlacementId(menuPlacementId);
+                setMenuPlacementId(null);
+              }}
+            >
+              <Text style={[styles.menuItemText, !currentUser?.isPremium && styles.menuItemTextDisabled]}>
+                📷  撮影する{!currentUser?.isPremium ? "  (Premium)" : ""}
+              </Text>
+            </Pressable>
+            <Pressable style={styles.menuCancel} onPress={() => setMenuPlacementId(null)}>
+              <Text style={styles.menuCancelText}>キャンセル</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+
+      {viewerPlacementId != null && (
+        <SceneViewerScreen
+          visible
+          placementId={viewerPlacementId}
+          deviceId={deviceId}
+          gateway={gateway}
+          onClose={() => setViewerPlacementId(null)}
+        />
+      )}
+
+      {capturePlacementId != null && (
+        <SceneCaptureScreen
+          visible
+          placementId={capturePlacementId}
+          deviceId={deviceId}
+          gateway={gateway}
+          onClose={() => setCapturePlacementId(null)}
+          onComplete={() => setCapturePlacementId(null)}
+        />
+      )}
     </View>
   );
 }
@@ -505,4 +571,53 @@ const styles = StyleSheet.create({
   selectorItemActive: { backgroundColor: "rgba(242,201,76,0.12)" },
   selectorItemText: { color: "rgba(255,255,255,0.85)", fontSize: 14, fontWeight: "600" },
   selectorItemTextActive: { color: "#F2C94C" },
+
+  // ピン長押しメニュー
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+    paddingBottom: 40,
+    paddingHorizontal: 16,
+  },
+  menuCard: {
+    backgroundColor: "#1e293b",
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  menuTitle: {
+    color: "#94a3b8",
+    fontSize: 13,
+    fontWeight: "600",
+    textAlign: "center",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#334155",
+  },
+  menuItem: {
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: "#334155",
+  },
+  menuItemDisabled: {
+    opacity: 0.4,
+  },
+  menuItemText: {
+    color: "#f8fafc",
+    fontSize: 17,
+    textAlign: "center",
+  },
+  menuItemTextDisabled: {
+    color: "#94a3b8",
+  },
+  menuCancel: {
+    paddingVertical: 18,
+  },
+  menuCancelText: {
+    color: "#6366f1",
+    fontSize: 17,
+    fontWeight: "600",
+    textAlign: "center",
+  },
 });

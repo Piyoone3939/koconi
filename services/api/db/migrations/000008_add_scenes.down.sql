@@ -1,0 +1,4 @@
+BEGIN;
+DROP TABLE IF EXISTS placement_scenes;
+ALTER TABLE users DROP COLUMN IF EXISTS is_premium;
+COMMIT;

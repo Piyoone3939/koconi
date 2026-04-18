@@ -14,6 +14,7 @@ type User struct {
 	DeviceID    string
 	DisplayName string
 	UserTag     string
+	IsPremium   bool
 	CreatedAt   time.Time
 }
 
@@ -23,6 +24,7 @@ type UserRepository interface {
 	FindByTag(ctx context.Context, tag string) (User, bool, error)
 	FindByID(ctx context.Context, id int64) (User, bool, error)
 	UpdateDisplayName(ctx context.Context, id int64, displayName string) (User, error)
+	SetPremium(ctx context.Context, id int64, isPremium bool) (User, error)
 }
 
 type RegisterUserUseCase struct {

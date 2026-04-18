@@ -9,6 +9,10 @@ services:
     depends_on:
       - koconi_db
     restart: unless-stopped
+    volumes:
+      - koconi_media:/data/uploads
+    environment:
+      - STORAGE_PATH=/data/uploads
 
   lp:
     build: ./apps/LP
@@ -67,3 +71,4 @@ services:
 
 volumes:
   postgres_data:
+  koconi_media:
