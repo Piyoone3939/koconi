@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import mapboxgl from 'mapbox-gl'
-import { Camera, Loader2 } from 'lucide-react'
+import { Camera, Loader2, MapPin } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   createPhoto,
@@ -24,20 +24,23 @@ export default function MapPage() {
 
   const [status, setStatus] = useState<Status>('idle')
   const [matchResult, setMatchResult] = useState<(MatchResult & { file: File; lat: number; lng: number }) | null>(null)
+  const [placementCount, setPlacementCount] = useState(0)
 
   const addMarker = useCallback((p: LandmarkPlacement) => {
     if (!map.current || markers.current.has(p.id)) return
 
     const el = document.createElement('div')
-    el.className = 'w-8 h-8 bg-blue-500 rounded-full border-2 border-white shadow-lg flex items-center justify-center cursor-pointer'
-    el.innerHTML = '<span style="font-size:14px">📍</span>'
+    el.className = p.model_url ? 'pin-marker-3d' : 'pin-marker'
 
-    const popup = new mapboxgl.Popup({ offset: 16 }).setHTML(
-      `<div class="text-xs p-1">
-        <div class="font-bold">${p.asset_id}</div>
-        <div class="text-gray-500">score: ${p.match_score?.toFixed(2) ?? '-'}</div>
-      </div>`
-    )
+    const popup = new mapboxgl.Popup({
+      offset: 16,
+      className: 'koconi-popup',
+    }).setHTML(`
+      <div style="background:#1e293b;border-radius:10px;padding:10px 12px;min-width:120px">
+        <div style="color:#f8fafc;font-size:13px;font-weight:700">${p.asset_id}</div>
+        <div style="color:#94a3b8;font-size:11px;margin-top:2px">score: ${p.match_score?.toFixed(2) ?? '-'}</div>
+      </div>
+    `)
 
     const marker = new mapboxgl.Marker(el)
       .setLngLat([p.lng, p.lat])
@@ -45,6 +48,7 @@ export default function MapPage() {
       .addTo(map.current)
 
     markers.current.set(p.id, marker)
+    setPlacementCount(c => c + 1)
   }, [])
 
   const loadPlacements = useCallback(async () => {
@@ -70,9 +74,12 @@ export default function MapPage() {
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
+      style: 'mapbox://styles/mapbox/standard',
       center: [139.6917, 35.6895],
       zoom: 10,
+      config: {
+        basemap: { lightPreset: 'night' },
+      },
     })
 
     map.current.addControl(new mapboxgl.NavigationControl(), 'top-right')
@@ -91,15 +98,15 @@ export default function MapPage() {
   }, [loadPlacements])
 
   const getCurrentLocation = (): Promise<{ lat: number; lng: number }> => {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       if (!navigator.geolocation) {
-        reject(new Error('位置情報が使えません'))
+        const center = map.current?.getCenter()
+        resolve({ lat: center?.lat ?? 35.6895, lng: center?.lng ?? 139.6917 })
         return
       }
       navigator.geolocation.getCurrentPosition(
         (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
         () => {
-          // GPS失敗時は地図中心を使用
           const center = map.current?.getCenter()
           resolve({ lat: center?.lat ?? 35.6895, lng: center?.lng ?? 139.6917 })
         },
@@ -167,15 +174,52 @@ export default function MapPage() {
   const isLoading = status !== 'idle'
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full" style={{ background: '#0f172a' }}>
       <div ref={mapContainer} className="w-full h-full" />
+
+      {/* ヘッダー */}
+      <div
+        className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-5 py-4"
+        style={{ background: 'linear-gradient(to bottom, rgba(15,23,42,0.9) 0%, transparent 100%)' }}
+      >
+        <div>
+          <div style={{ color: '#f8fafc', fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>
+            Koconi
+          </div>
+          <div style={{ color: '#94a3b8', fontSize: 12 }}>
+            {placementCount > 0 ? `${placementCount}件のランドマーク` : '地図を動かして読み込む'}
+          </div>
+        </div>
+        <div
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
+          style={{ background: 'rgba(20,20,20,0.82)', border: '1px solid rgba(255,255,255,0.12)' }}
+        >
+          <MapPin size={12} color="#E86F00" />
+          <span style={{ color: '#F2C94C', fontSize: 12, fontWeight: 700 }}>MAP</span>
+        </div>
+      </div>
 
       {/* アップロードボタン */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
         <button
           onClick={() => !isLoading && fileInputRef.current?.click()}
           disabled={isLoading}
-          className="flex items-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 text-white rounded-full shadow-lg font-medium transition-colors"
+          className="flex items-center gap-2 rounded-full"
+          style={{
+            paddingTop: 16,
+            paddingBottom: 16,
+            paddingLeft: 28,
+            paddingRight: 28,
+            background: isLoading ? '#C8BAA8' : '#E86F00',
+            color: '#fff',
+            fontWeight: 700,
+            fontSize: 15,
+            letterSpacing: 0.3,
+            boxShadow: isLoading ? 'none' : '0 4px 20px rgba(232,111,0,0.5)',
+            border: 'none',
+            cursor: isLoading ? 'not-allowed' : 'pointer',
+            transition: 'all 0.2s',
+          }}
         >
           {isLoading ? (
             <>
