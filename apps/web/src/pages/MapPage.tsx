@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import mapboxgl from 'mapbox-gl'
-import { Camera, Loader2, MapPin } from 'lucide-react'
+import { Camera, Loader2, MapPin, RotateCcw, Navigation } from 'lucide-react'
 import { toast } from 'sonner'
 import {
   createPhoto,
@@ -11,10 +11,12 @@ import {
 import { getDeviceId } from '../lib/deviceId'
 import type { LandmarkPlacement, MatchCandidate, MatchResult } from '../types'
 import MatchResultModal from '../components/MatchResultModal'
+import TabBar from '../components/TabBar'
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string
 
 type Status = 'idle' | 'uploading' | 'matching' | 'placing'
+type Tab = 'map' | 'photo' | 'friends' | 'profile'
 
 export default function MapPage() {
   const mapContainer = useRef<HTMLDivElement>(null)
@@ -23,6 +25,7 @@ export default function MapPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [status, setStatus] = useState<Status>('idle')
+  const [activeTab, setActiveTab] = useState<Tab>('map')
   const [matchResult, setMatchResult] = useState<(MatchResult & { file: File; lat: number; lng: number }) | null>(null)
   const [placementCount, setPlacementCount] = useState(0)
 
@@ -30,15 +33,23 @@ export default function MapPage() {
     if (!map.current || markers.current.has(p.id)) return
 
     const el = document.createElement('div')
-    el.className = p.model_url ? 'pin-marker-3d' : 'pin-marker'
+    el.style.cssText = `
+      width: ${p.model_url ? 16 : 12}px;
+      height: ${p.model_url ? 16 : 12}px;
+      border-radius: 50%;
+      background: ${p.model_url ? '#7697A0' : '#E86F00'};
+      border: 2px solid #fff;
+      cursor: pointer;
+      box-shadow: 0 0 6px rgba(232,111,0,0.5);
+    `
 
     const popup = new mapboxgl.Popup({
       offset: 16,
-      className: 'koconi-popup',
+      closeButton: false,
     }).setHTML(`
-      <div style="background:#1e293b;border-radius:10px;padding:10px 12px;min-width:120px">
+      <div style="background:#1e293b;border-radius:10px;padding:10px 14px;min-width:130px;border:1px solid #334155">
         <div style="color:#f8fafc;font-size:13px;font-weight:700">${p.asset_id}</div>
-        <div style="color:#94a3b8;font-size:11px;margin-top:2px">score: ${p.match_score?.toFixed(2) ?? '-'}</div>
+        <div style="color:#94a3b8;font-size:11px;margin-top:3px">score: ${p.match_score?.toFixed(2) ?? '-'}</div>
       </div>
     `)
 
@@ -55,18 +66,13 @@ export default function MapPage() {
     if (!map.current) return
     const bounds = map.current.getBounds()
     if (!bounds) return
-
     try {
       const placements = await fetchPlacementsByBounds(
-        bounds.getSouth(),
-        bounds.getNorth(),
-        bounds.getWest(),
-        bounds.getEast(),
+        bounds.getSouth(), bounds.getNorth(),
+        bounds.getWest(), bounds.getEast(),
       )
       placements.forEach(addMarker)
-    } catch {
-      // APIが起動していない場合は静かに失敗
-    }
+    } catch { /* サイレント失敗 */ }
   }, [addMarker])
 
   useEffect(() => {
@@ -75,42 +81,37 @@ export default function MapPage() {
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
       style: 'mapbox://styles/mapbox/standard',
-      center: [139.6917, 35.6895],
-      zoom: 10,
-      config: {
-        basemap: { lightPreset: 'night' },
-      },
+      center: [139.7454, 35.6586],
+      zoom: 14,
+      pitch: 50,
+      config: { basemap: { lightPreset: 'night' } },
     })
-
-    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right')
-    map.current.addControl(
-      new mapboxgl.GeolocateControl({ trackUserLocation: true }),
-      'top-right',
-    )
 
     map.current.on('moveend', loadPlacements)
     map.current.on('load', loadPlacements)
 
-    return () => {
-      map.current?.remove()
-      map.current = null
-    }
+    return () => { map.current?.remove(); map.current = null }
   }, [loadPlacements])
 
-  const getCurrentLocation = (): Promise<{ lat: number; lng: number }> => {
-    return new Promise((resolve) => {
-      if (!navigator.geolocation) {
-        const center = map.current?.getCenter()
-        resolve({ lat: center?.lat ?? 35.6895, lng: center?.lng ?? 139.6917 })
-        return
-      }
-      navigator.geolocation.getCurrentPosition(
+  const getCurrentLocation = (): Promise<{ lat: number; lng: number }> =>
+    new Promise((resolve) => {
+      navigator.geolocation?.getCurrentPosition(
         (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
         () => {
-          const center = map.current?.getCenter()
-          resolve({ lat: center?.lat ?? 35.6895, lng: center?.lng ?? 139.6917 })
+          const c = map.current?.getCenter()
+          resolve({ lat: c?.lat ?? 35.6586, lng: c?.lng ?? 139.7454 })
         },
       )
+    })
+
+  const flyToCurrentLocation = () => {
+    navigator.geolocation?.getCurrentPosition((pos) => {
+      map.current?.flyTo({
+        center: [pos.coords.longitude, pos.coords.latitude],
+        zoom: 15,
+        pitch: 50,
+        duration: 1000,
+      })
     })
   }
 
@@ -128,9 +129,17 @@ export default function MapPage() {
 
       setStatus('matching')
       toast('AIがランドマークを判定中...')
-      const result = await matchPhoto(photo.id, file, lat, lng)
 
-      if (!result.candidates || result.candidates.length === 0) {
+      let result: MatchResult
+      try {
+        result = await matchPhoto(photo.id, file, lat, lng)
+      } catch {
+        toast.error('AIサービスが利用できません。しばらくしてから再試行してください。')
+        setStatus('idle')
+        return
+      }
+
+      if (!result.candidates?.length) {
         toast.error('ランドマークが見つかりませんでした')
         setStatus('idle')
         return
@@ -148,7 +157,6 @@ export default function MapPage() {
     if (!matchResult) return
     setMatchResult(null)
     setStatus('placing')
-
     try {
       const placement = await createPlacement({
         photoId: matchResult.photo_id,
@@ -160,9 +168,8 @@ export default function MapPage() {
         matchScore: candidate.match_score,
         modelUrl: '',
       })
-
       addMarker(placement)
-      map.current?.flyTo({ center: [placement.lng, placement.lat], zoom: 14 })
+      map.current?.flyTo({ center: [placement.lng, placement.lat], zoom: 15 })
       toast.success('ランドマークを配置しました！')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '配置に失敗しました')
@@ -175,32 +182,58 @@ export default function MapPage() {
 
   return (
     <div className="relative w-full h-full" style={{ background: '#0f172a' }}>
-      <div ref={mapContainer} className="w-full h-full" />
+      {/* マップ */}
+      <div ref={mapContainer} className="absolute inset-0" />
 
       {/* ヘッダー */}
       <div
-        className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-5 py-4"
-        style={{ background: 'linear-gradient(to bottom, rgba(15,23,42,0.9) 0%, transparent 100%)' }}
+        className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-5"
+        style={{
+          paddingTop: 20,
+          paddingBottom: 40,
+          background: 'linear-gradient(to bottom, rgba(15,23,42,0.85) 0%, transparent 100%)',
+          pointerEvents: 'none',
+        }}
       >
         <div>
-          <div style={{ color: '#f8fafc', fontSize: 22, fontWeight: 800, letterSpacing: -0.5 }}>
+          <div style={{ color: '#f8fafc', fontSize: 24, fontWeight: 800, letterSpacing: -0.5 }}>
             Koconi
           </div>
-          <div style={{ color: '#94a3b8', fontSize: 12 }}>
+          <div style={{ color: '#94a3b8', fontSize: 12, marginTop: 2 }}>
             {placementCount > 0 ? `${placementCount}件のランドマーク` : '地図を動かして読み込む'}
           </div>
         </div>
         <div
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-full"
-          style={{ background: 'rgba(20,20,20,0.82)', border: '1px solid rgba(255,255,255,0.12)' }}
+          style={{
+            background: 'rgba(20,20,20,0.82)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            pointerEvents: 'auto',
+          }}
         >
           <MapPin size={12} color="#E86F00" />
           <span style={{ color: '#F2C94C', fontSize: 12, fontWeight: 700 }}>MAP</span>
         </div>
       </div>
 
+      {/* 右側コントロール */}
+      <div
+        className="absolute right-4 z-10 flex flex-col gap-3"
+        style={{ top: '50%', transform: 'translateY(-50%)' }}
+      >
+        <button className="map-control-btn" onClick={flyToCurrentLocation} title="現在地">
+          <Navigation size={18} color="#fff" />
+        </button>
+        <button className="map-control-btn" onClick={loadPlacements} title="再読み込み">
+          <RotateCcw size={18} color="#fff" />
+        </button>
+      </div>
+
       {/* アップロードボタン */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
+      <div
+        className="absolute z-10 flex justify-center"
+        style={{ bottom: 90, left: 0, right: 0 }}
+      >
         <button
           onClick={() => !isLoading && fileInputRef.current?.click()}
           disabled={isLoading}
@@ -210,7 +243,7 @@ export default function MapPage() {
             paddingBottom: 16,
             paddingLeft: 28,
             paddingRight: 28,
-            background: isLoading ? '#C8BAA8' : '#E86F00',
+            background: isLoading ? 'rgba(200,186,168,0.8)' : '#E86F00',
             color: '#fff',
             fontWeight: 700,
             fontSize: 15,
@@ -243,6 +276,9 @@ export default function MapPage() {
           onChange={handleFileChange}
         />
       </div>
+
+      {/* タブバー */}
+      <TabBar active={activeTab} onChange={setActiveTab} />
 
       {/* 候補選択モーダル */}
       {matchResult && (
