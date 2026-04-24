@@ -80,11 +80,10 @@ export default function MapPage() {
 
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/standard',
+      style: 'mapbox://styles/mapbox/dark-v11',
       center: [139.7454, 35.6586],
       zoom: 14,
       pitch: 50,
-      config: { basemap: { lightPreset: 'night' } },
     })
 
     map.current.on('moveend', loadPlacements)
