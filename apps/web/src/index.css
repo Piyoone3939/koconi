@@ -9,4 +9,78 @@
 html, body, #root {
   height: 100%;
   width: 100%;
+  background: #0f172a;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* 現在地グローエフェクト */
+.location-halo {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(232, 111, 0, 0.10);
+  box-shadow: 0 0 24px 12px rgba(232, 111, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.location-outer {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(232, 111, 0, 0.22);
+  box-shadow: 0 0 12px 4px rgba(232, 111, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.location-inner {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #E86F00;
+  border: 2.5px solid #fff;
+  box-shadow: 0 0 8px rgba(232, 111, 0, 0.8);
+}
+
+/* マップコントロールボタン */
+.map-control-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 23px;
+  background: rgba(20, 20, 20, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  font-size: 20px;
+  transition: background 0.2s;
+}
+
+.map-control-btn:hover {
+  background: rgba(40, 40, 40, 0.9);
+}
+
+/* ピンマーカー */
+.pin-marker {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #E86F00;
+  border: 2px solid #fff;
+  cursor: pointer;
+}
+
+.pin-marker-3d {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #7697A0;
+  border: 2px solid #fff;
+  cursor: pointer;
 }
